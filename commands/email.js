@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const gerarPix = require('../utils/gerarPix');
+const db = require('../database/db');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -7,7 +8,17 @@ module.exports = {
     .setDescription('Informe seu e-mail para gerar o PIX')
     .addStringOption(option => option.setName('endereco').setDescription('Seu e-mail').setRequired(true)),
 
-  async execute(interaction, client, db) {
+  async execute(interaction, client) {
+    // Verificação de credencial do Mercado Pago
+    const token = await new Promise((resolve) => {
+      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
+        resolve(row?.value);
+      });
+    });
+    if (!token) {
+      return interaction.reply({ content: '❌ Credencial do Mercado Pago não configurada. Um administrador precisa usar o comando `/credencial` primeiro.', ephemeral: true });
+    }
+
     const email = interaction.options.getString('endereco');
     const channel = interaction.channel;
 
