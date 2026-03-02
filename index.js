@@ -176,14 +176,13 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
-      // Adia a resposta para evitar interação expirada (caso o comando demore)
-      await interaction.deferReply({ ephemeral: true });
+      // Não adiamos automaticamente; deixamos o comando decidir se precisa deferReply
       await command.execute(interaction, client, db);
     } catch (error) {
       console.error(`Erro no comando ${interaction.commandName}:`, error);
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: '❌ Erro ao executar comando.', ephemeral: true });
-      } else {
+      } else if (interaction.deferred && !interaction.replied) {
         await interaction.editReply({ content: '❌ Erro ao executar comando.' });
       }
     }
