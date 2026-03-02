@@ -31,6 +31,17 @@ app.post('/webhook', async (req, res) => {
     console.log(`🔍 Payment ID: ${paymentId}`);
 
     try {
+      // Busca a credencial do banco
+      const token = await new Promise((resolve, reject) => {
+        db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
+          if (err || !row || !row.value) reject(new Error('Credencial não configurada'));
+          else resolve(row.value);
+        });
+      });
+
+      const mercadopago = require('mercadopago');
+      mercadopago.configure({ access_token: token });
+
       const payment = await mercadopago.payment.get(paymentId);
       console.log(`📊 Status: ${payment.body.status}`);
 
@@ -44,7 +55,6 @@ app.post('/webhook', async (req, res) => {
           }
           if (!pedido) {
             console.log('❌ Pedido não encontrado para pagamento_id:', paymentId);
-            // Lista todos os pedidos para depuração
             db.all(`SELECT pedido_id, pagamento_id FROM pedidos`, (err2, rows) => {
               if (!err2) {
                 console.log('📋 Pedidos no banco:');
@@ -57,7 +67,6 @@ app.post('/webhook', async (req, res) => {
 
           db.run(`UPDATE pedidos SET status = 'concluido', concluido_em = datetime('now') WHERE id = ?`, [pedido.id]);
 
-          // Busca o produto para obter link e cargo_id
           db.get(`SELECT * FROM produtos WHERE id = ?`, [pedido.produto_id], async (err, produto) => {
             if (err || !produto) {
               console.log('❌ Produto não encontrado');
@@ -72,7 +81,6 @@ app.post('/webhook', async (req, res) => {
               return res.sendStatus(200);
             }
 
-            // Entrega do produto no canal do ticket ou DM
             const canal = guild.channels.cache.find(c => c.name === pedido.pedido_id);
             if (canal) {
               await canal.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
@@ -87,7 +95,7 @@ app.post('/webhook', async (req, res) => {
               }
             }
 
-            // 🆕 Atribuir cargo automático se o produto tiver cargo_id
+            // Atribuir cargo se existir
             if (produto.cargo_id) {
               console.log(`🎫 Tentando atribuir cargo ${produto.cargo_id} ao comprador ${pedido.comprador_id}`);
               try {
@@ -111,12 +119,16 @@ app.post('/webhook', async (req, res) => {
       }
     } catch (error) {
       console.error('❌ Erro no webhook:', error.message);
+      if (error.message.includes('Credencial não configurada')) {
+        console.log('⚠️ Credencial do Mercado Pago não configurada. Use /credencial.');
+      }
       res.sendStatus(500);
     }
   } else {
     res.sendStatus(200);
   }
 });
+          
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
