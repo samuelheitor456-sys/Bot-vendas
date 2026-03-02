@@ -1,6 +1,8 @@
 const { ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const db = require('../database/db');
 
+// ==================== FUNÇÕES AUXILIARES ====================
+
 async function mostrarCatalogo(interaction) {
   db.all(`SELECT id, nome, valor, imagem FROM produtos ORDER BY id DESC`, (err, rows) => {
     if (err || rows.length === 0) {
@@ -233,6 +235,8 @@ async function adicionarAoCarrinho(interaction, produto, quantidade) {
   });
 }
 
+// ==================== HANDLER PRINCIPAL ====================
+
 module.exports = async (interaction, client) => {
   const customId = interaction.customId;
 
@@ -335,7 +339,7 @@ module.exports = async (interaction, client) => {
 
         const actionRow = new ActionRowBuilder().addComponents(tokenInput);
         modal.addComponents(actionRow);
-        interaction.showModal(modal); // sem await, pois não é async
+        interaction.showModal(modal);
       });
     }
 
@@ -498,4 +502,30 @@ module.exports = async (interaction, client) => {
         if (err || !row || !row.qr_code) {
           return interaction.reply({ content: '❌ Chave PIX não encontrada.', ephemeral: true });
         }
-        aw
+        await interaction.reply({
+          content: `🔑 **Chave PIX (copia e cola):**\n\`${row.qr_code}\``,
+          ephemeral: true
+        });
+      });
+    }
+
+    else if (customId === 'selecionar_canal') {
+      const canalId = interaction.values[0];
+      db.run(`INSERT OR REPLACE INTO config (key, value) VALUES ('canal_vendas', ?)`, [canalId], (err) => {
+        if (err) {
+          console.error(err);
+          return interaction.reply({ content: '❌ Erro ao salvar configuração.', ephemeral: true });
+        }
+        interaction.reply({ content: `✅ Canal de vendas definido para <#${canalId}>.`, ephemeral: true });
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Erro no buttonHandler:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: `❌ Erro: ${error.message}`, ephemeral: true });
+    } else if (interaction.deferred && !interaction.replied) {
+      await interaction.editReply({ content: `❌ Erro: ${error.message}` });
+    }
+  }
+};
