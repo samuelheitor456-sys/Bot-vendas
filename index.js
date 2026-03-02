@@ -170,16 +170,26 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async interaction => {
+  // Para comandos de barra
   if (interaction.isCommand()) {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
+
     try {
+      // Adia a resposta para evitar interação expirada (caso o comando demore)
+      await interaction.deferReply({ ephemeral: true });
       await command.execute(interaction, client, db);
     } catch (error) {
       console.error(`Erro no comando ${interaction.commandName}:`, error);
-      await interaction.reply({ content: '❌ Erro ao executar comando.', ephemeral: true });
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: '❌ Erro ao executar comando.', ephemeral: true });
+      } else {
+        await interaction.editReply({ content: '❌ Erro ao executar comando.' });
+      }
     }
-  } else if (interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) {
+  }
+  // Para botões, modais e menus
+  else if (interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) {
     let handlerPath;
     if (interaction.isButton()) handlerPath = './handlers/buttonHandler';
     else if (interaction.isModalSubmit()) handlerPath = './handlers/modalHandler';
@@ -190,8 +200,10 @@ client.on('interactionCreate', async interaction => {
       await handler(interaction, client, db);
     } catch (error) {
       console.error('Erro no handler:', error);
-      if (!interaction.replied) {
+      if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: '❌ Erro ao processar interação.', ephemeral: true });
+      } else if (interaction.deferred && !interaction.replied) {
+        await interaction.editReply({ content: '❌ Erro ao processar interação.' });
       }
     }
   }
