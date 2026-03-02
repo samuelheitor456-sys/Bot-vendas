@@ -6,10 +6,8 @@ const db = require('./database/db');
 const express = require('express');
 const mercadopago = require('mercadopago');
 
-// Configura Mercado Pago
 mercadopago.configure({ access_token: process.env.MERCADO_PAGO_ACCESS_TOKEN });
 
-// ==================== SERVIDOR WEB (OBRIGATÓRIO) ====================
 const app = express();
 app.use(express.json());
 
@@ -20,7 +18,6 @@ app.post('/webhook', async (req, res) => {
   console.log('📩 Webhook recebido:', JSON.stringify(req.body, null, 2));
   const { body } = req;
 
-  // Ignora notificações de teste
   if (body.data?.id === '123456') {
     console.log('ℹ️ Notificação de teste ignorada.');
     return res.sendStatus(200);
@@ -32,11 +29,17 @@ app.post('/webhook', async (req, res) => {
 
     try {
       const payment = await mercadopago.payment.get(paymentId);
+      console.log(`📊 Status: ${payment.body.status}`);
+
       if (payment.body.status === 'approved') {
         console.log('✅ Pagamento aprovado. Buscando pedido...');
 
         db.get(`SELECT * FROM pedidos WHERE pagamento_id = ?`, [paymentId], async (err, pedido) => {
-          if (err || !pedido) {
+          if (err) {
+            console.error('❌ Erro ao buscar pedido:', err);
+            return res.sendStatus(500);
+          }
+          if (!pedido) {
             console.log('❌ Pedido não encontrado para pagamento_id:', paymentId);
             return res.sendStatus(404);
           }
@@ -45,46 +48,50 @@ app.post('/webhook', async (req, res) => {
           db.run(`UPDATE pedidos SET status = 'concluido', concluido_em = datetime('now') WHERE id = ?`, [pedido.id]);
 
           db.get(`SELECT link FROM produtos WHERE id = ?`, [pedido.produto_id], async (err, produto) => {
-            if (produto) {
-              const guild = client.guilds.cache.first();
-              if (!guild) {
-                console.log('❌ Nenhum servidor encontrado.');
-                return;
-              }
-              const canal = guild.channels.cache.find(c => c.name === pedido.pedido_id);
-              if (canal) {
-                await canal.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
-                console.log(`✅ Produto entregue no canal ${pedido.pedido_id}`);
-              } else {
-                console.log(`⚠️ Canal não encontrado, enviando DM...`);
-                try {
-                  const user = await client.users.fetch(pedido.comprador_id);
-                  if (user) await user.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
-                } catch (e) {
-                  console.error('❌ Erro ao enviar DM:', e);
-                }
+            if (err || !produto) {
+              console.log('❌ Produto não encontrado');
+              return res.sendStatus(200);
+            }
+
+            const guild = client.guilds.cache.first();
+            if (!guild) {
+              console.log('❌ Nenhum servidor encontrado.');
+              return res.sendStatus(200);
+            }
+
+            const canal = guild.channels.cache.find(c => c.name === pedido.pedido_id);
+            if (canal) {
+              await canal.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
+              console.log(`✅ Produto entregue no canal ${pedido.pedido_id}`);
+            } else {
+              console.log(`⚠️ Canal não encontrado, tentando DM...`);
+              try {
+                const user = await client.users.fetch(pedido.comprador_id);
+                if (user) await user.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
+              } catch (e) {
+                console.error('❌ Erro ao enviar DM:', e);
               }
             }
+            res.sendStatus(200);
           });
         });
+      } else {
+        res.sendStatus(200);
       }
     } catch (error) {
-      console.error('❌ Erro ao processar webhook:', error.message);
-      if (error.message.includes('404')) {
-        console.log('ℹ️ Pagamento não encontrado (ID de teste).');
-      }
+      console.error('❌ Erro:', error.message);
+      res.sendStatus(500);
     }
+  } else {
+    res.sendStatus(200);
   }
-  res.sendStatus(200);
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor webhook rodando na porta ${PORT}`);
 });
-// ==================== FIM DO SERVIDOR ====================
 
-// ==================== BOT DISCORD ====================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -97,7 +104,6 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// Carregar comandos da pasta commands
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
