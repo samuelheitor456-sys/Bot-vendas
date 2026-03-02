@@ -26,10 +26,9 @@ app.post('/webhook', async (req, res) => {
     console.log(`🔍 Payment ID: ${paymentId}`);
 
     try {
-      // Busca a credencial do banco
       const token = await new Promise((resolve, reject) => {
         db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
-          if (err || !row || !row.value) reject(new Error('Credencial do Mercado Pago não configurada. Use /credencial.'));
+          if (err || !row || !row.value) reject(new Error('Credencial não configurada'));
           else resolve(row.value);
         });
       });
@@ -43,28 +42,16 @@ app.post('/webhook', async (req, res) => {
       if (payment.body.status === 'approved') {
         console.log('✅ Pagamento aprovado. Buscando pedido...');
 
-        // GAMBIARRA: busca com e sem .0
         db.get(`SELECT * FROM pedidos WHERE pagamento_id = ? OR pagamento_id = ?`, 
           [paymentId, paymentId + '.0'], async (err, pedido) => {
-          if (err) {
-            console.error('❌ Erro ao buscar pedido:', err);
-            return res.sendStatus(500);
-          }
-          if (!pedido) {
+          if (err || !pedido) {
             console.log('❌ Pedido não encontrado para pagamento_id:', paymentId);
-            db.all(`SELECT pedido_id, pagamento_id FROM pedidos`, (err2, rows) => {
-              if (!err2) {
-                console.log('📋 Pedidos no banco:');
-                rows.forEach(r => console.log(`  ${r.pedido_id}: "${r.pagamento_id}"`));
-              }
-            });
             return res.sendStatus(404);
           }
           console.log('📦 Pedido encontrado:', pedido.pedido_id);
 
           db.run(`UPDATE pedidos SET status = 'concluido', concluido_em = datetime('now') WHERE id = ?`, [pedido.id]);
 
-          // Busca os itens do pedido (carrinho) ou produto único
           db.all(`SELECT * FROM pedido_itens WHERE pedido_id = ?`, [pedido.pedido_id], async (err, itens) => {
             if (err) console.error('Erro ao buscar itens do pedido:', err);
 
@@ -75,45 +62,41 @@ app.post('/webhook', async (req, res) => {
             }
 
             const canal = guild.channels.cache.find(c => c.name === pedido.pedido_id);
-            let mensagemEntrega = '';
+            let links = [];
 
             if (itens && itens.length > 0) {
-              // Pedido com múltiplos itens (carrinho)
-              mensagemEntrega = '✅ **Pagamento confirmado!** Aqui estão seus produtos:\n';
               for (const item of itens) {
                 const produto = await new Promise((resolve) => {
                   db.get(`SELECT link FROM produtos WHERE id = ?`, [item.produto_id], (err, row) => resolve(row));
                 });
-                if (produto) {
-                  mensagemEntrega += `- **Produto ID ${item.produto_id}**: ${produto.link}\n`;
-                }
+                if (produto) links.push(produto.link);
               }
             } else {
-              // Pedido normal (único produto)
               const produto = await new Promise((resolve) => {
                 db.get(`SELECT link FROM produtos WHERE id = ?`, [pedido.produto_id], (err, row) => resolve(row));
               });
-              if (produto) {
-                mensagemEntrega = `✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`;
-              } else {
-                mensagemEntrega = '✅ Pagamento confirmado!';
-              }
+              if (produto) links.push(produto.link);
             }
 
+            // Envia DM para o cliente
+            try {
+              const user = await client.users.fetch(pedido.comprador_id);
+              if (user) {
+                const dmMessage = `Muito obrigado pela compra!\nNós da equipe Payzex agradecemos muito!\n\nSeu pedido está logo abaixo:\n${links.join('\n')}`;
+                await user.send(dmMessage);
+                console.log(`✅ Produto enviado por DM para ${user.tag}`);
+              }
+            } catch (e) {
+              console.error('❌ Erro ao enviar DM:', e);
+            }
+
+            // Envia mensagem no ticket (se ainda existir)
             if (canal) {
-              await canal.send(mensagemEntrega);
-              console.log(`✅ Produto entregue no canal ${pedido.pedido_id}`);
-            } else {
-              console.log(`⚠️ Canal não encontrado, enviando DM...`);
-              try {
-                const user = await client.users.fetch(pedido.comprador_id);
-                if (user) await user.send(mensagemEntrega);
-              } catch (e) {
-                console.error('❌ Erro ao enviar DM:', e);
-              }
+              await canal.send('✅ **Pagamento efetuado!** Muito obrigado ❤️\nEnviamos seu produto na sua DM.');
+              console.log(`✅ Mensagem enviada no canal ${pedido.pedido_id}`);
             }
 
-            // Atribuir cargo se existir (apenas para pedidos normais, se tiver produto_id)
+            // Atribuir cargo se existir
             if (pedido.produto_id) {
               db.get(`SELECT cargo_id FROM produtos WHERE id = ?`, [pedido.produto_id], async (err, produto) => {
                 if (produto && produto.cargo_id) {
