@@ -22,8 +22,13 @@ module.exports = async function gerarPix(pedido, email) {
     db.run(`UPDATE pedidos SET pagamento_id = ?, qr_code = ? WHERE pedido_id = ?`,
       [payment.id, qr_code, pedido.pedido_id],
       function(err) {
-        if (err) reject(err);
-        else resolve();
+        if (err) {
+          console.error('❌ Erro ao salvar pagamento_id:', err);
+          reject(err);
+        } else {
+          console.log('✅ pagamento_id salvo:', payment.id);
+          resolve();
+        }
       }
     );
   });
