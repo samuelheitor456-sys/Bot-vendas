@@ -5,6 +5,7 @@ const dbPath = path.resolve(__dirname, '../produtos.db');
 const db = new sqlite3.Database(dbPath);
 
 db.serialize(() => {
+  // Cria tabela de configuração
   db.run(`CREATE TABLE IF NOT EXISTS config (
     key TEXT PRIMARY KEY,
     value TEXT
@@ -12,6 +13,7 @@ db.serialize(() => {
 
   db.run(`INSERT OR IGNORE INTO config (key, value) VALUES ('pedido_counter', '0')`);
 
+  // Cria tabela de produtos
   db.run(`CREATE TABLE IF NOT EXISTS produtos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT,
@@ -23,6 +25,7 @@ db.serialize(() => {
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  // Cria tabela de pedidos - com pagamento_id como TEXT!
   db.run(`CREATE TABLE IF NOT EXISTS pedidos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pedido_id TEXT UNIQUE,
@@ -32,11 +35,13 @@ db.serialize(() => {
     comprador_email TEXT,
     valor REAL,
     status TEXT DEFAULT 'aguardando_pagamento',
-    pagamento_id TEXT,
+    pagamento_id TEXT,  -- AGORA É TEXT
     qr_code TEXT,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     concluido_em DATETIME
   )`);
+
+  console.log('✅ Banco de dados verificado/recriado com pagamento_id como TEXT');
 });
 
 module.exports = db;
