@@ -1,14 +1,11 @@
-const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const gerarPix = require('../utils/gerarPix');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('email')
     .setDescription('Informe seu e-mail para gerar o PIX')
-    .addStringOption(option =>
-      option.setName('endereco')
-        .setDescription('Seu e-mail')
-        .setRequired(true)),
+    .addStringOption(option => option.setName('endereco').setDescription('Seu e-mail').setRequired(true)),
 
   async execute(interaction, client, db) {
     const email = interaction.options.getString('endereco');
@@ -33,7 +30,20 @@ module.exports = {
 
         try {
           const { embed, attachment } = await gerarPix(pedido, email);
-          await interaction.reply({ embeds: [embed], files: [attachment] });
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`copiar_${pedido.pedido_id}`)
+              .setLabel('📋 Copiar chave PIX')
+              .setStyle(ButtonStyle.Secondary)
+              .setEmoji('💳')
+          );
+
+          await interaction.reply({
+            embeds: [embed],
+            components: [row],
+            files: [attachment]
+          });
         } catch (error) {
           console.error(error);
           await interaction.reply({ content: '❌ Erro ao gerar PIX.', ephemeral: true });
