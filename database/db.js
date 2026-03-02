@@ -5,15 +5,17 @@ const dbPath = path.resolve(__dirname, '../produtos.db');
 const db = new sqlite3.Database(dbPath);
 
 db.serialize(() => {
-  // Configurações
+  // Configurações gerais (já existe)
   db.run(`CREATE TABLE IF NOT EXISTS config (
     key TEXT PRIMARY KEY,
     value TEXT
   )`);
 
+  // Inserir valores padrão se não existirem
   db.run(`INSERT OR IGNORE INTO config (key, value) VALUES ('pedido_counter', '0')`);
+  db.run(`INSERT OR IGNORE INTO config (key, value) VALUES ('mp_access_token', '')`); // ← NOVO
 
-  // Produtos (agora com cargo_id)
+  // Produtos (já deve existir com cargo_id)
   db.run(`CREATE TABLE IF NOT EXISTS produtos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT,
@@ -22,7 +24,7 @@ db.serialize(() => {
     link TEXT,
     imagem TEXT,
     canal_id TEXT,
-    cargo_id TEXT,         -- 🆕 ID do cargo que será dado ao comprador
+    cargo_id TEXT,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
@@ -41,7 +43,8 @@ db.serialize(() => {
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     concluido_em DATETIME
   )`);
+
+  console.log('✅ Banco de dados atualizado (config MP)');
 });
 
-console.log('✅ Banco de dados atualizado (cargo_id adicionado)');
 module.exports = db;
