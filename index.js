@@ -6,13 +6,17 @@ const db = require('./database/db');
 const express = require('express');
 const mercadopago = require('mercadopago');
 
+// Configura Mercado Pago
 mercadopago.configure({ access_token: process.env.MERCADO_PAGO_ACCESS_TOKEN });
 
 const app = express();
 app.use(express.json());
 
+// Rotas do servidor web
 app.get('/', (req, res) => res.send('OK'));
+app.get('/webhook', (req, res) => res.send('Webhook endpoint ativo. Use POST.'));
 
+// Webhook principal
 app.post('/webhook', async (req, res) => {
   console.log('📩 Webhook recebido:', JSON.stringify(req.body, null, 2));
   const { body } = req;
@@ -23,7 +27,7 @@ app.post('/webhook', async (req, res) => {
   }
 
   if (body.type === 'payment') {
-    const paymentId = String(body.data.id); // Garantir string
+    const paymentId = String(body.data.id);
     console.log(`🔍 Payment ID: ${paymentId}`);
 
     try {
@@ -40,7 +44,6 @@ app.post('/webhook', async (req, res) => {
           }
           if (!pedido) {
             console.log('❌ Pedido não encontrado para pagamento_id:', paymentId);
-            
             // Lista todos os pedidos para depuração
             db.all(`SELECT pedido_id, pagamento_id FROM pedidos`, (err2, rows) => {
               if (!err2) {
@@ -54,11 +57,14 @@ app.post('/webhook', async (req, res) => {
 
           db.run(`UPDATE pedidos SET status = 'concluido', concluido_em = datetime('now') WHERE id = ?`, [pedido.id]);
 
-          db.get(`SELECT link FROM produtos WHERE id = ?`, [pedido.produto_id], async (err, produto) => {
+          // Busca o produto para obter link e cargo_id
+          db.get(`SELECT * FROM produtos WHERE id = ?`, [pedido.produto_id], async (err, produto) => {
             if (err || !produto) {
               console.log('❌ Produto não encontrado');
               return res.sendStatus(200);
             }
+
+            console.log('🎁 Produto:', produto.nome);
 
             const guild = client.guilds.cache.first();
             if (!guild) {
@@ -66,6 +72,7 @@ app.post('/webhook', async (req, res) => {
               return res.sendStatus(200);
             }
 
+            // Entrega do produto no canal do ticket ou DM
             const canal = guild.channels.cache.find(c => c.name === pedido.pedido_id);
             if (canal) {
               await canal.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
@@ -79,6 +86,23 @@ app.post('/webhook', async (req, res) => {
                 console.error('❌ Erro ao enviar DM:', e);
               }
             }
+
+            // 🆕 Atribuir cargo automático se o produto tiver cargo_id
+            if (produto.cargo_id) {
+              console.log(`🎫 Tentando atribuir cargo ${produto.cargo_id} ao comprador ${pedido.comprador_id}`);
+              try {
+                const member = await guild.members.fetch(pedido.comprador_id);
+                if (member) {
+                  await member.roles.add(produto.cargo_id);
+                  console.log(`✅ Cargo atribuído ao usuário ${member.user.tag}`);
+                } else {
+                  console.log('❌ Membro não encontrado no servidor.');
+                }
+              } catch (roleError) {
+                console.error('❌ Erro ao atribuir cargo:', roleError);
+              }
+            }
+
             res.sendStatus(200);
           });
         });
@@ -99,18 +123,20 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor webhook rodando na porta ${PORT}`);
 });
 
+// ==================== BOT DISCORD ====================
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMembers, // necessário para gerenciar cargos
     GatewayIntentBits.GuildVoiceStates
   ]
 });
 
 client.commands = new Collection();
 
+// Carregar comandos da pasta commands
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
