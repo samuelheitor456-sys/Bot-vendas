@@ -324,12 +324,12 @@ module.exports = async (interaction, client) => {
       }
 
       // Verifica se já existe uma credencial
-      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
+      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, result) => { // renomeado para result
         if (err) {
           console.error(err);
           return interaction.reply({ content: '❌ Erro ao verificar credencial.', ephemeral: true });
         }
-        if (row && row.value) {
+        if (result && result.value) {
           return interaction.reply({ 
             content: '⚠️ Já existe uma credencial cadastrada. Use o botão "Excluir Credencial" antes de cadastrar uma nova.', 
             ephemeral: true 
@@ -348,8 +348,8 @@ module.exports = async (interaction, client) => {
           .setRequired(true)
           .setPlaceholder('Cole seu Access Token aqui');
 
-        const row = new ActionRowBuilder().addComponents(tokenInput);
-        modal.addComponents(row);
+        const actionRow = new ActionRowBuilder().addComponents(tokenInput); // renomeado para actionRow
+        modal.addComponents(actionRow);
         interaction.showModal(modal);
       });
     }
@@ -359,15 +359,15 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
 
-      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
+      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, result) => { // renomeado
         if (err) {
           console.error(err);
           return interaction.reply({ content: '❌ Erro ao buscar credencial.', ephemeral: true });
         }
-        if (!row || !row.value) {
+        if (!result || !result.value) {
           return interaction.reply({ content: 'ℹ️ Nenhuma credencial cadastrada ainda.', ephemeral: true });
         }
-        interaction.reply({ content: `🔑 Credencial atual: \`${row.value}\``, ephemeral: true });
+        interaction.reply({ content: `🔑 Credencial atual: \`${result.value}\``, ephemeral: true });
       });
     }
 
@@ -499,8 +499,4 @@ module.exports = async (interaction, client) => {
 
       await interaction.reply({ content: '✅ Venda confirmada! Fechando em 5s...' });
       db.run(`UPDATE pedidos SET status = 'concluido' WHERE pedido_id = ?`, [pedidoId]);
-      setTimeout(async () => await channel.delete(), 5000);
-    }
-
-    else if (customId.startsWith('fechar_')) {
-      if (!interaction.member.roles.cac
+      setTimeout(async () => await channel.delete(), 5
