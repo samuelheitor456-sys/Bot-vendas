@@ -18,22 +18,28 @@ module.exports = async function gerarPix(pedido, email) {
   const qr_code_base64 = payment.point_of_interaction.transaction_data.qr_code_base64;
 
   const db = require('../database/db');
+  
+  // Garantir que o pagamento_id seja salvo como string
+  const pagamentoIdStr = String(payment.id);
+  
   await new Promise((resolve, reject) => {
     db.run(`UPDATE pedidos SET pagamento_id = ?, qr_code = ? WHERE pedido_id = ?`,
-      [payment.id, qr_code, pedido.pedido_id],
+      [pagamentoIdStr, qr_code, pedido.pedido_id],
       function(err) {
         if (err) {
           console.error('❌ Erro ao salvar pagamento_id:', err);
           reject(err);
         } else {
-          console.log('✅ pagamento_id salvo:', payment.id);
-          // Verifica se realmente salvou
+          console.log('✅ pagamento_id salvo como string:', pagamentoIdStr);
+          
+          // Verificação pós-salvamento
           db.get(`SELECT pagamento_id FROM pedidos WHERE pedido_id = ?`, [pedido.pedido_id], (err2, row) => {
-            if (err2) console.error('Erro ao verificar:', err2);
-            else if (row && row.pagamento_id === payment.id) {
-              console.log('✅ Verificação: pagamento_id corresponde.');
+            if (err2) {
+              console.error('❌ Erro na verificação:', err2);
+            } else if (row && row.pagamento_id === pagamentoIdStr) {
+              console.log('✅ Verificação: pagamento_id OK.');
             } else {
-              console.error('❌ Verificação falhou: pagamento_id não corresponde. Esperado:', payment.id, 'Encontrado:', row?.pagamento_id);
+              console.error('❌ Verificação falhou!', row);
             }
           });
           resolve();
