@@ -26,7 +26,7 @@ db.serialize(() => {
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
-  // Pedidos
+  // Pedidos - com pagamento_id como TEXT (sem ".0")
   db.run(`CREATE TABLE IF NOT EXISTS pedidos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pedido_id TEXT UNIQUE,
@@ -104,13 +104,13 @@ db.serialize(() => {
   )`);
 
   db.run(`CREATE TABLE IF NOT EXISTS pedido_itens (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  pedido_id TEXT,
-  produto_id INTEGER,
-  quantidade INTEGER,
-  valor_unitario REAL,
-  FOREIGN KEY(pedido_id) REFERENCES pedidos(pedido_id)
-)`);
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pedido_id TEXT,
+    produto_id INTEGER,
+    quantidade INTEGER,
+    valor_unitario REAL,
+    FOREIGN KEY(pedido_id) REFERENCES pedidos(pedido_id)
+  )`);
 
   console.log('✅ Banco de dados atualizado (todas as tabelas)');
 });
