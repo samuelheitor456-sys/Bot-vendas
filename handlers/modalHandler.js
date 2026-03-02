@@ -153,33 +153,60 @@ module.exports = async (interaction, client) => {
               function(err) { if (err) reject(err); else resolve(); });
           });
 
-          await interaction.reply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
+          // ==================== MENSAGEM PROFISSIONAL DO TICKET (COMPRA DIRETA) ====================
+          const embed = new EmbedBuilder()
+            .setColor(0x9B59B6)
+            .setTitle(`🛒 **COMPRA DO PEDIDO ${pedidoNumero}**`)
+            .setDescription(`
+━━━━━━━━━━━━━━━━━━━━━━━━
+**👤 RESPONSÁVEL:** <@&${vendedorRole}>
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+**📦 PRODUTO:** ${produto.nome}
+
+**💰 VALOR:** R$ ${valorTotal.toFixed(2)}
+
+**👤 CLIENTE:** ${user}
+
+**📝 DESCRIÇÃO:** ${produto.descricao}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+**💳 PAGAMENTO VIA PIX**
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔹 **Como gerar o Pix?**
+Digite o comando abaixo neste canal:
+
+\`\`\`
+/email seu@email.com
+\`\`\`
+
+✅ **Pagamento 100% seguro processado pelo Mercado Pago**
+⏱️ Após a confirmação, o produto será entregue automaticamente.
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+            `)
+            .setFooter({ 
+              text: 'BOT DE VENDAS PRIME WOLF PACK | Confiança e segurança em cada compra', 
+              iconURL: 'https://cdn.discordapp.com/emojis/1234567890.png' 
+            })
+            .setTimestamp();
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
               .setCustomId(`confirmar_${pedidoId}`)
               .setLabel('✅ CONFIRMAR VENDA')
-              .setStyle(ButtonStyle.Success),
+              .setStyle(ButtonStyle.Success)
+              .setEmoji('✅'),
             new ButtonBuilder()
               .setCustomId(`fechar_${pedidoId}`)
               .setLabel('❌ FECHAR TICKET')
               .setStyle(ButtonStyle.Danger)
+              .setEmoji('❌')
           );
 
-          const mensagem = `
-━━━━━━━━━━━━━━━━━━━━━━━━
-**🛒 NOVO PEDIDO** • <@&${vendedorRole}>
-━━━━━━━━━━━━━━━━━━━━━━━━
-
-**👤 Cliente:** ${user}
-**🛍️ Produto:** **${produto.nome}** x${quantidade}
-**💰 Valor total:** **R$ ${valorTotal.toFixed(2)}**
-
-📌 Digite \`/email seu@email.com\` para gerar o PIX.
-━━━━━━━━━━━━━━━━━━━━━━━━
-          `;
-
-          await ticketChannel.send({ content: mensagem, components: [row] });
+          await ticketChannel.send({ embeds: [embed], components: [row] });
+          await interaction.reply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
         }
         else if (acao === 'carrinho') {
           const usuarioId = interaction.user.id;
