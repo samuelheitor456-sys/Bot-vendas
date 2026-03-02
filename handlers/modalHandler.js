@@ -6,11 +6,9 @@ module.exports = async (interaction, client) => {
     // ========== MODAL DE CREDENCIAL ==========
     if (interaction.customId === 'modal_credencial') {
       const token = interaction.fields.getTextInputValue('token');
-
       if (!token.startsWith('TEST-') && !token.startsWith('APP-') && !token.startsWith('TEST_') && !token.startsWith('APP_')) {
         return interaction.reply({ content: '❌ Token inválido. Deve começar com TEST- ou APP- (ou _).', ephemeral: true });
       }
-
       db.run(`INSERT OR REPLACE INTO config (key, value) VALUES ('mp_access_token', ?)`, [token], function(err) {
         if (err) {
           console.error(err);
@@ -27,12 +25,23 @@ module.exports = async (interaction, client) => {
       const valor = parseFloat(interaction.fields.getTextInputValue('valor'));
       const link = interaction.fields.getTextInputValue('link');
       const imagem = interaction.fields.getTextInputValue('imagem');
+      const estoqueInput = interaction.fields.getTextInputValue('estoque');
 
+      // Validações
       if (isNaN(valor) || valor <= 0) {
         return interaction.reply({ content: '❌ Valor inválido.', ephemeral: true });
       }
       if (!imagem.startsWith('http')) {
         return interaction.reply({ content: '❌ URL da imagem deve começar com http:// ou https://', ephemeral: true });
+      }
+
+      // Processar estoque: se vazio, -1 (ilimitado); senão, converte para inteiro
+      let estoque = -1;
+      if (estoqueInput && estoqueInput.trim() !== '') {
+        estoque = parseInt(estoqueInput);
+        if (isNaN(estoque) || estoque < 0) {
+          return interaction.reply({ content: '❌ Estoque deve ser um número não negativo.', ephemeral: true });
+        }
       }
 
       let canalId = await new Promise((resolve) => {
@@ -49,8 +58,8 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ Não foi possível determinar um canal para publicar o produto.', ephemeral: true });
       }
 
-      db.run(`INSERT INTO produtos (nome, descricao, valor, link, imagem, canal_id) VALUES (?, ?, ?, ?, ?, ?)`,
-        [nome, descricao, valor, link, imagem, canal.id],
+      db.run(`INSERT INTO produtos (nome, descricao, valor, link, imagem, canal_id, estoque) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [nome, descricao, valor, link, imagem, canal.id, estoque],
         function(err) {
           if (err) {
             console.error('❌ Erro ao inserir produto:', err);
@@ -65,7 +74,7 @@ module.exports = async (interaction, client) => {
             .setDescription(`**${nome}**\n${descricao}`)
             .addFields({
               name: '💳 Informações',
-              value: `💰 R$ ${valor.toFixed(2)}  |  📦 Ilimitado  |  📬 Automática`
+              value: `💰 R$ ${valor.toFixed(2)}  |  📦 ${estoque === -1 ? 'Ilimitado' : estoque + ' unidades'}  |  📬 Automática`
             })
             .setImage(imagem)
             .setFooter({ text: `BOT DE VENDAS PRIME WOLF PACK | Hoje às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` })
@@ -111,6 +120,11 @@ module.exports = async (interaction, client) => {
           return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
         }
 
+        // Verificar estoque
+        if (produto.estoque !== -1 && produto.estoque < quantidade) {
+          return interaction.reply({ content: `❌ Estoque insuficiente. Disponível: ${produto.estoque} unidades.`, ephemeral: true });
+        }
+
         if (acao === 'comprar') {
           // Lógica de compra direta com quantidade
           const guild = interaction.guild;
@@ -153,6 +167,12 @@ module.exports = async (interaction, client) => {
               function(err) { if (err) reject(err); else resolve(); });
           });
 
+          // Dar baixa no estoque (apenas se não for ilimitado)
+          if (produto.estoque !== -1) {
+            const novoEstoque = produto.estoque - quantidade;
+            db.run(`UPDATE produtos SET estoque = ? WHERE id = ?`, [novoEstoque, produto.id]);
+          }
+
           // ==================== MENSAGEM PROFISSIONAL DO TICKET (COMPRA DIRETA) ====================
           const embed = new EmbedBuilder()
             .setColor(0x9B59B6)
@@ -162,7 +182,7 @@ module.exports = async (interaction, client) => {
 **👤 RESPONSÁVEL:** <@&${vendedorRole}>
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
-**📦 PRODUTO:** ${produto.nome}
+**📦 PRODUTO:** ${produto.nome} x${quantidade}
 
 **💰 VALOR:** R$ ${valorTotal.toFixed(2)}
 
@@ -215,6 +235,7 @@ Digite o comando abaixo neste canal:
             if (err || !carrinho) {
               return interaction.reply({ content: '❌ Erro ao acessar carrinho.', ephemeral: true });
             }
+            // Verifica se já existe o mesmo produto no carrinho para somar quantidades? Por simplicidade, insere novo.
             db.run(`INSERT INTO carrinho_itens (carrinho_id, produto_id, quantidade) VALUES (?, ?, ?)`,
               [carrinho.id, produto.id, quantidade], function(err2) {
                 if (err2) {
