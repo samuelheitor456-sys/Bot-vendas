@@ -8,11 +8,10 @@ const express = require('express');
 const app = express();
 app.use(express.json());
 
-// Rotas do servidor web
+// ==================== ROTAS DO WEBHOOK ====================
 app.get('/', (req, res) => res.send('OK'));
 app.get('/webhook', (req, res) => res.send('Webhook endpoint ativo. Use POST.'));
 
-// Webhook principal (agora obtém o token do banco)
 app.post('/webhook', async (req, res) => {
   console.log('📩 Webhook recebido:', JSON.stringify(req.body, null, 2));
   const { body } = req;
@@ -44,7 +43,9 @@ app.post('/webhook', async (req, res) => {
       if (payment.body.status === 'approved') {
         console.log('✅ Pagamento aprovado. Buscando pedido...');
 
-        db.get(`SELECT * FROM pedidos WHERE pagamento_id = ?`, [paymentId], async (err, pedido) => {
+        // GAMBIARRA: busca com e sem .0
+        db.get(`SELECT * FROM pedidos WHERE pagamento_id = ? OR pagamento_id = ?`, 
+          [paymentId, paymentId + '.0'], async (err, pedido) => {
           if (err) {
             console.error('❌ Erro ao buscar pedido:', err);
             return res.sendStatus(500);
@@ -63,13 +64,9 @@ app.post('/webhook', async (req, res) => {
 
           db.run(`UPDATE pedidos SET status = 'concluido', concluido_em = datetime('now') WHERE id = ?`, [pedido.id]);
 
-          db.get(`SELECT * FROM produtos WHERE id = ?`, [pedido.produto_id], async (err, produto) => {
-            if (err || !produto) {
-              console.log('❌ Produto não encontrado');
-              return res.sendStatus(200);
-            }
-
-            console.log('🎁 Produto:', produto.nome);
+          // Busca os itens do pedido (pode ser um pedido normal ou de carrinho)
+          db.all(`SELECT * FROM pedido_itens WHERE pedido_id = ?`, [pedido.pedido_id], async (err, itens) => {
+            if (err) console.error('Erro ao buscar itens do pedido:', err);
 
             const guild = client.guilds.cache.first();
             if (!guild) {
@@ -78,33 +75,54 @@ app.post('/webhook', async (req, res) => {
             }
 
             const canal = guild.channels.cache.find(c => c.name === pedido.pedido_id);
+            let mensagemEntrega = '';
+
+            if (itens && itens.length > 0) {
+              // Pedido com múltiplos itens (carrinho)
+              mensagemEntrega = '✅ **Pagamento confirmado!** Aqui estão seus produtos:\n';
+              for (const item of itens) {
+                const produto = await new Promise((resolve) => {
+                  db.get(`SELECT link FROM produtos WHERE id = ?`, [item.produto_id], (err, row) => resolve(row));
+                });
+                if (produto) {
+                  mensagemEntrega += `- **${item.produto_id}**: ${produto.link}\n`;
+                }
+              }
+            } else {
+              // Pedido normal (único produto)
+              db.get(`SELECT link FROM produtos WHERE id = ?`, [pedido.produto_id], async (err, produto) => {
+                if (produto) mensagemEntrega = `✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`;
+              });
+            }
+
             if (canal) {
-              await canal.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
+              await canal.send(mensagemEntrega || '✅ Pagamento confirmado! Produto entregue.');
               console.log(`✅ Produto entregue no canal ${pedido.pedido_id}`);
             } else {
-              console.log(`⚠️ Canal ${pedido.pedido_id} não encontrado, tentando DM...`);
+              console.log(`⚠️ Canal não encontrado, enviando DM...`);
               try {
                 const user = await client.users.fetch(pedido.comprador_id);
-                if (user) await user.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
+                if (user) await user.send(mensagemEntrega || '✅ Pagamento confirmado! Produto entregue.');
               } catch (e) {
                 console.error('❌ Erro ao enviar DM:', e);
               }
             }
 
-            // Atribuir cargo se existir
-            if (produto.cargo_id) {
-              console.log(`🎫 Tentando atribuir cargo ${produto.cargo_id} ao comprador ${pedido.comprador_id}`);
-              try {
-                const member = await guild.members.fetch(pedido.comprador_id);
-                if (member) {
-                  await member.roles.add(produto.cargo_id);
-                  console.log(`✅ Cargo atribuído ao usuário ${member.user.tag}`);
-                } else {
-                  console.log('❌ Membro não encontrado no servidor.');
+            // Atribuir cargo se existir (apenas para pedidos normais, se tiver produto_id)
+            if (pedido.produto_id) {
+              db.get(`SELECT cargo_id FROM produtos WHERE id = ?`, [pedido.produto_id], async (err, produto) => {
+                if (produto && produto.cargo_id) {
+                  try {
+                    const member = await guild.members.fetch(pedido.comprador_id);
+                    if (member) {
+                      await member.roles.add(produto.cargo_id);
+                      console.log(`✅ Cargo atribuído ao usuário ${member.user.tag}`);
+                    }
+                  } catch (roleError) {
+                    console.error('❌ Erro ao atribuir cargo:', roleError);
+                  }
                 }
-              } catch (roleError) {
-                console.error('❌ Erro ao atribuir cargo:', roleError);
-              }
+              });
             }
 
             res.sendStatus(200);
@@ -170,13 +188,12 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async interaction => {
-  // Para comandos de barra
+  // Comandos de barra
   if (interaction.isCommand()) {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
 
     try {
-      // Não adiamos automaticamente; deixamos o comando decidir se precisa deferReply
       await command.execute(interaction, client, db);
     } catch (error) {
       console.error(`Erro no comando ${interaction.commandName}:`, error);
@@ -187,7 +204,7 @@ client.on('interactionCreate', async interaction => {
       }
     }
   }
-  // Para botões, modais e menus
+  // Botões, modais e menus
   else if (interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) {
     let handlerPath;
     if (interaction.isButton()) handlerPath = './handlers/buttonHandler';
