@@ -1,9 +1,7 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const db = require('../database/db');
 
 module.exports = async (interaction, client) => {
-  if (interaction.customId !== 'selecionar_canal' && interaction.customId !== 'selecionar_produto_catalogo') return;
-
   try {
     if (interaction.customId === 'selecionar_canal') {
       const canalId = interaction.values[0];
@@ -23,30 +21,87 @@ module.exports = async (interaction, client) => {
           return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
         }
 
+        const estoqueDisplay = produto.estoque === -1 ? 'Ilimitado' : produto.estoque + ' unidades';
         const embed = new EmbedBuilder()
           .setColor(0x9B59B6)
-          .setAuthor({ name: '🛍️ Produto' })
-          .setTitle(produto.nome)
-          .setDescription(`\`\`\`\n${produto.descricao}\n\`\`\``)
-          .setThumbnail(produto.imagem)
+          .setTitle('🛡️ Compra Segura')
+          .setDescription(`**${produto.nome}**\n${produto.descricao}`)
           .addFields(
-            { name: '💰 Preço', value: `R$ ${produto.valor.toFixed(2)}`, inline: true },
-            { name: '🆔 ID', value: produto.id.toString(), inline: true },
-            { name: '🎁 Cargo', value: produto.cargo_id ? `<@&${produto.cargo_id}>` : 'Nenhum', inline: true }
+            { name: 'Valor', value: `R$ ${produto.valor.toFixed(2)}`, inline: true },
+            { name: 'Estoque', value: estoqueDisplay, inline: true },
+            { name: 'Entrega', value: 'Automática', inline: true }
           )
-          .setFooter({ text: 'Clique no botão para comprar' })
+          .setImage(produto.imagem)
+          .setFooter({ text: 'BOT DE VENDAS PRIME WOLF PACK' })
           .setTimestamp();
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
-            .setCustomId(`comprar_${produto.id}`)
-            .setLabel('🛒 Comprar agora')
+            .setCustomId(`add_carrinho_${produto.id}`)
+            .setLabel('Adicionar ao carrinho')
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('➕'),
+          new ButtonBuilder()
+            .setCustomId(`comprar_agora_${produto.id}`)
+            .setLabel('Comprar agora')
             .setStyle(ButtonStyle.Success)
             .setEmoji('🛒')
         );
 
         await interaction.update({ embeds: [embed], components: [row] });
       });
+    }
+
+    else if (interaction.customId === 'selecionar_canal_para_produto') {
+      const canalId = interaction.values[0];
+      const modal = new ModalBuilder()
+        .setCustomId(`modal_produto_canal_${canalId}`)
+        .setTitle('➕ Novo Produto');
+
+      const nomeInput = new TextInputBuilder().setCustomId('nome').setLabel('📦 Nome').setStyle(TextInputStyle.Short).setRequired(true);
+      const descInput = new TextInputBuilder().setCustomId('descricao').setLabel('📝 Descrição').setStyle(TextInputStyle.Paragraph).setRequired(true);
+      const valorInput = new TextInputBuilder().setCustomId('valor').setLabel('💰 Valor (ex: 49.90)').setStyle(TextInputStyle.Short).setRequired(true);
+      const linkInput = new TextInputBuilder().setCustomId('link').setLabel('🔗 Link de entrega').setStyle(TextInputStyle.Short).setRequired(true);
+      const imagemInput = new TextInputBuilder().setCustomId('imagem').setLabel('🖼️ URL da imagem').setStyle(TextInputStyle.Short).setRequired(true);
+
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(nomeInput),
+        new ActionRowBuilder().addComponents(descInput),
+        new ActionRowBuilder().addComponents(valorInput),
+        new ActionRowBuilder().addComponents(linkInput),
+        new ActionRowBuilder().addComponents(imagemInput)
+      );
+      await interaction.showModal(modal);
+    }
+
+    else if (interaction.customId === 'selecionar_produto_cargo') {
+      const produtoId = interaction.values[0];
+      const modal = new ModalBuilder()
+        .setCustomId(`modal_cargo_${produtoId}`)
+        .setTitle('Adicionar Cargo ao Produto');
+      const cargoInput = new TextInputBuilder()
+        .setCustomId('cargo_id')
+        .setLabel('ID do cargo (ex: 123456789)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+      const row = new ActionRowBuilder().addComponents(cargoInput);
+      modal.addComponents(row);
+      await interaction.showModal(modal);
+    }
+
+    else if (interaction.customId === 'selecionar_produto_estoque') {
+      const produtoId = interaction.values[0];
+      const modal = new ModalBuilder()
+        .setCustomId(`modal_estoque_${produtoId}`)
+        .setTitle('Ajustar Estoque');
+      const estoqueInput = new TextInputBuilder()
+        .setCustomId('estoque')
+        .setLabel('Nova quantidade (-1 ilimitado)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+      const row = new ActionRowBuilder().addComponents(estoqueInput);
+      modal.addComponents(row);
+      await interaction.showModal(modal);
     }
   } catch (error) {
     console.error('❌ Erro no selectHandler:', error);
