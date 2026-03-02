@@ -85,6 +85,7 @@ async function mostrarCarrinho(interaction) {
 }
 
 async function abrirModalQuantidade(interaction, produtoId, acao) {
+  console.log(`Abrindo modal para produto ${produtoId}, ação ${acao}`);
   const modal = new ModalBuilder()
     .setCustomId('modal_quantidade')
     .setTitle('Quantidade');
@@ -110,11 +111,12 @@ async function abrirModalQuantidade(interaction, produtoId, acao) {
     .setRequired(true)
     .setValue(acao);
 
-  const row1 = new ActionRowBuilder().addComponents(quantidadeInput);
-  const row2 = new ActionRowBuilder().addComponents(produtoIdInput);
-  const row3 = new ActionRowBuilder().addComponents(acaoInput);
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(quantidadeInput),
+    new ActionRowBuilder().addComponents(produtoIdInput),
+    new ActionRowBuilder().addComponents(acaoInput)
+  );
 
-  modal.addComponents(row1, row2, row3);
   await interaction.showModal(modal);
 }
 
@@ -122,6 +124,10 @@ async function criarTicketComQuantidade(interaction, produto, quantidade, client
   const guild = interaction.guild;
   const user = interaction.user;
   const vendedorRole = process.env.VENDEDOR_ROLE_ID;
+
+  if (!vendedorRole) {
+    throw new Error('VENDEDOR_ROLE_ID não configurado');
+  }
 
   const pedidoNumero = await new Promise((resolve, reject) => {
     db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
@@ -304,7 +310,10 @@ module.exports = async (interaction, client) => {
     else if (customId === 'selecionar_produto_catalogo') {
       const produtoId = interaction.values[0];
       db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], async (err, produto) => {
-        if (err || !produto) return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
+        if (err || !produto) {
+          console.error('Erro ao buscar produto:', err);
+          return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
+        }
 
         const embed = new EmbedBuilder()
           .setColor(0x9B59B6)
@@ -321,11 +330,13 @@ module.exports = async (interaction, client) => {
           new ButtonBuilder()
             .setCustomId(`comprar_agora_${produto.id}`)
             .setLabel('🛒 Comprar Agora')
-            .setStyle(ButtonStyle.Success),
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('🛒'),
           new ButtonBuilder()
             .setCustomId(`add_carrinho_${produto.id}`)
             .setLabel('➕ Adicionar ao Carrinho')
             .setStyle(ButtonStyle.Primary)
+            .setEmoji('➕')
         );
 
         await interaction.update({ embeds: [embed], components: [row] });
@@ -341,9 +352,6 @@ module.exports = async (interaction, client) => {
       const produtoId = customId.replace('add_carrinho_', '');
       await abrirModalQuantidade(interaction, produtoId, 'carrinho');
     }
-
-    // ========== MODAL DE QUANTIDADE (processado aqui, mas o modal em si é tratado no modalHandler) ==========
-    // A lógica do modal está no modalHandler, então aqui só abrimos.
 
     // ========== BOTÕES DO CARRINHO ==========
     else if (customId.startsWith('remover_item_')) {
@@ -381,8 +389,7 @@ module.exports = async (interaction, client) => {
         });
         const pedidoId = `pedido-${pedidoNumero}`;
 
-        // Criar um pedido com o primeiro produto? Não é ideal, mas por enquanto apenas uma mensagem.
-        // Recomendação: evoluir a tabela de pedidos para suportar múltiplos produtos.
+        // Aqui você pode criar um pedido com os itens (requer adaptação)
         interaction.reply({ content: '⏳ Funcionalidade de finalizar carrinho em desenvolvimento. Use a compra direta.', ephemeral: true });
       });
     }
