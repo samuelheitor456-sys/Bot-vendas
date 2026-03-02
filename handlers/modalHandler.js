@@ -55,7 +55,7 @@ module.exports = async (interaction, client) => {
 
           const produtoId = this.lastID;
 
-          // Embed do produto conforme a nova imagem
+          // Embed do produto com campos inline para ficarem na horizontal
           const embed = new EmbedBuilder()
             .setColor(0x9B59B6) // Roxo
             .setTitle('🛡️ Compra Segura')
@@ -65,8 +65,8 @@ module.exports = async (interaction, client) => {
               { name: '📦 Estoque', value: 'Ilimitado', inline: true },
               { name: '📬 Entrega', value: 'Automática', inline: true }
             )
-            .setImage(imagem) // Imagem principal abaixo dos campos
-            .setFooter({ text: 'BOT DE VENDAS PRIME WOLF PACK' })
+            .setImage(imagem)
+            .setFooter({ text: `BOT DE VENDAS PRIME WOLF PACK | Hoje às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` })
             .setTimestamp();
 
           // Botões: Adicionar ao carrinho e Comprar agora
