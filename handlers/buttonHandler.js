@@ -1,6 +1,7 @@
 const { ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ButtonBuilder, ButtonStyle } = require('discord.js');
 const db = require('../database/db');
 
+// Função auxiliar para criar ticket
 async function criarTicket(interaction, produtoId, client) {
   const guild = interaction.guild;
   const user = interaction.user;
@@ -21,7 +22,7 @@ async function criarTicket(interaction, produtoId, client) {
 
   const pedidoId = `pedido-${pedidoNumero}`;
 
-  // Busca produto (incluindo cargo_id)
+  // Busca produto
   const produto = await new Promise((resolve, reject) => {
     db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], (err, row) => {
       if (err) reject(err);
@@ -50,7 +51,7 @@ async function criarTicket(interaction, produtoId, client) {
     ],
   });
 
-  // Insere pedido
+  // Insere pedido no banco
   await new Promise((resolve, reject) => {
     db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, produto_id, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?, ?)`,
       [pedidoId, pedidoNumero, produtoId, user.id, produto.valor, 'aguardando_pagamento'],
@@ -91,6 +92,42 @@ async function criarTicket(interaction, produtoId, client) {
   await ticketChannel.send({ content: mensagem, components: [row] });
 }
 
+// Função para finalizar carrinho (usada no botão)
+async function finalizarCarrinho(interaction, client, usuarioId) {
+  const db = require('../database/db');
+  const gerarPix = require('../utils/gerarPix');
+
+  db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade FROM carrinho_itens ci
+          JOIN carrinhos c ON ci.carrinho_id = c.id
+          JOIN produtos p ON ci.produto_id = p.id
+          WHERE c.usuario_id = ?`, [usuarioId], async (err, itens) => {
+    if (err || itens.length === 0) {
+      return interaction.reply({ content: '❌ Carrinho vazio.', ephemeral: true });
+    }
+
+    let total = itens.reduce((acc, i) => acc + i.valor * i.quantidade, 0);
+    const pedidoId = `carrinho-${Date.now()}`;
+
+    db.run(`INSERT INTO pedidos (pedido_id, comprador_id, valor, status) VALUES (?, ?, ?, ?)`,
+      [pedidoId, usuarioId, total, 'aguardando_pagamento'], async function(err2) {
+        if (err2) {
+          console.error(err2);
+          return interaction.reply({ content: '❌ Erro ao gerar pedido.', ephemeral: true });
+        }
+
+        try {
+          const { embed, attachment } = await gerarPix({ pedido_id: pedidoId, valor: total }, interaction.user.id);
+          await interaction.reply({ embeds: [embed], files: [attachment], ephemeral: true });
+          // Limpa carrinho após finalizar
+          db.run(`DELETE FROM carrinho_itens WHERE carrinho_id = (SELECT id FROM carrinhos WHERE usuario_id = ?)`, [usuarioId]);
+        } catch (error) {
+          console.error(error);
+          interaction.reply({ content: '❌ Erro ao gerar PIX.', ephemeral: true });
+        }
+      });
+  });
+}
+
 module.exports = async (interaction, client) => {
   const customId = interaction.customId;
 
@@ -108,8 +145,9 @@ module.exports = async (interaction, client) => {
         .addOptions(channels);
       const row = new ActionRowBuilder().addComponents(selectMenu);
       await interaction.reply({ content: '📍 Selecione o canal:', components: [row], ephemeral: true });
+    }
 
-    } else if (customId === 'adicionar_produto') {
+    else if (customId === 'adicionar_produto') {
       const modal = new ModalBuilder()
         .setCustomId('modal_produto')
         .setTitle('➕ Novo Produto');
@@ -128,19 +166,21 @@ module.exports = async (interaction, client) => {
         new ActionRowBuilder().addComponents(imagemInput)
       );
       await interaction.showModal(modal);
+    }
 
-    } else if (customId.startsWith('comprar_')) {
+    else if (customId.startsWith('comprar_')) {
       const produtoId = customId.split('_')[1];
       await criarTicket(interaction, produtoId, client);
+    }
 
-    } else if (customId.startsWith('confirmar_')) {
+    else if (customId.startsWith('confirmar_')) {
       if (!interaction.member.roles.cache.has(process.env.VENDEDOR_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas vendedores.', ephemeral: true });
       }
       const pedidoId = customId.split('_')[1];
       const channel = interaction.channel;
 
-      // Buscar produto associado ao pedido para obter cargo_id
+      // Busca produto associado ao pedido para obter cargo_id
       db.get(`SELECT produto_id FROM pedidos WHERE pedido_id = ?`, [pedidoId], (err, row) => {
         if (!err && row) {
           db.get(`SELECT cargo_id FROM produtos WHERE id = ?`, [row.produto_id], (err2, produto) => {
@@ -157,8 +197,9 @@ module.exports = async (interaction, client) => {
       await interaction.reply({ content: '✅ Venda confirmada! Fechando em 5s...' });
       db.run(`UPDATE pedidos SET status = 'concluido' WHERE pedido_id = ?`, [pedidoId]);
       setTimeout(async () => await channel.delete(), 5000);
+    }
 
-    } else if (customId.startsWith('fechar_')) {
+    else if (customId.startsWith('fechar_')) {
       if (!interaction.member.roles.cache.has(process.env.VENDEDOR_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas vendedores.', ephemeral: true });
       }
@@ -166,8 +207,9 @@ module.exports = async (interaction, client) => {
       const channel = interaction.channel;
       await interaction.reply({ content: '🔒 Fechando ticket...' });
       setTimeout(async () => await channel.delete(), 5000);
+    }
 
-    } else if (customId.startsWith('copiar_')) {
+    else if (customId.startsWith('copiar_')) {
       const pedidoId = customId.replace('copiar_', '');
       db.get(`SELECT qr_code FROM pedidos WHERE pedido_id = ?`, [pedidoId], async (err, row) => {
         if (err || !row || !row.qr_code) {
@@ -179,10 +221,22 @@ module.exports = async (interaction, client) => {
         });
       });
     }
+
+    else if (customId === 'carrinho_finalizar') {
+      const usuarioId = interaction.user.id;
+      await finalizarCarrinho(interaction, client, usuarioId);
+    }
+
+    else if (customId === 'carrinho_limpar') {
+      db.run(`DELETE FROM carrinho_itens WHERE carrinho_id = (SELECT id FROM carrinhos WHERE usuario_id = ?)`, [interaction.user.id]);
+      interaction.reply({ content: '✅ Carrinho limpo.', ephemeral: true });
+    }
   } catch (error) {
     console.error('❌ Erro no buttonHandler:', error);
-    if (!interaction.replied) {
+    if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: `❌ Erro: ${error.message}`, ephemeral: true });
+    } else if (interaction.deferred && !interaction.replied) {
+      await interaction.editReply({ content: `❌ Erro: ${error.message}` });
     }
   }
 };
