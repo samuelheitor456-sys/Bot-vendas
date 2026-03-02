@@ -18,9 +18,9 @@ module.exports = {
 
     const token = interaction.options.getString('token');
 
-    // Validação básica (opcional)
-    if (!token.startsWith('TEST-') && !token.startsWith('APP-')) {
-      return interaction.reply({ content: '❌ Token inválido. Deve começar com TEST- (teste) ou APP- (produção).', ephemeral: true });
+    // Validação corrigida: aceita tanto hífen quanto underscore
+    if (!token.startsWith('TEST-') && !token.startsWith('APP-') && !token.startsWith('TEST_') && !token.startsWith('APP_')) {
+      return interaction.reply({ content: '❌ Token inválido. Deve começar com TEST- (teste) ou APP- (produção) (também aceita TEST_ ou APP_).', ephemeral: true });
     }
 
     db.run(`INSERT OR REPLACE INTO config (key, value) VALUES ('mp_access_token', ?)`, [token], function(err) {
