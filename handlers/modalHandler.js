@@ -11,7 +11,7 @@ module.exports = async (interaction, client) => {
       const link = interaction.fields.getTextInputValue('link');
       const imagem = interaction.fields.getTextInputValue('imagem');
 
-      // Validações básicas
+      // Validações
       if (isNaN(valor) || valor <= 0) {
         return interaction.reply({ content: '❌ Valor inválido.', ephemeral: true });
       }
@@ -36,8 +36,7 @@ module.exports = async (interaction, client) => {
         canal = client.channels.cache.get(canalId);
       }
       if (!canal) {
-        // Fallback: usar o canal onde a interação ocorreu
-        canal = interaction.channel;
+        canal = interaction.channel; // fallback para o canal atual
         console.log('⚠️ Canal de vendas não configurado, usando canal atual.');
       }
 
@@ -56,24 +55,30 @@ module.exports = async (interaction, client) => {
 
           const produtoId = this.lastID;
 
-          // Cria embed do produto
+          // Embed do produto conforme a nova imagem
           const embed = new EmbedBuilder()
-            .setColor(0x9B59B6)
-            .setAuthor({ name: '🛍️ NOVO PRODUTO' })
-            .setTitle(nome)
-            .setDescription(`\`\`\`\n${descricao}\n\`\`\``)
-            .setThumbnail(imagem)
+            .setColor(0x9B59B6) // Roxo
+            .setTitle('🛡️ Compra Segura')
+            .setDescription(`**${nome}**\n${descricao}`)
             .addFields(
-              { name: '💰 Preço', value: `R$ ${valor.toFixed(2)}`, inline: true },
-              { name: '🆔 ID', value: produtoId.toString(), inline: true }
+              { name: '💰 Valor', value: `R$ ${valor.toFixed(2)}`, inline: true },
+              { name: '📦 Estoque', value: 'Ilimitado', inline: true },
+              { name: '📬 Entrega', value: 'Automática', inline: true }
             )
-            .setFooter({ text: 'Clique no botão para comprar' })
+            .setImage(imagem) // Imagem principal abaixo dos campos
+            .setFooter({ text: 'BOT DE VENDAS PRIME WOLF PACK' })
             .setTimestamp();
 
+          // Botões: Adicionar ao carrinho e Comprar agora
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId(`comprar_${produtoId}`)
-              .setLabel('🛒 Comprar agora')
+              .setCustomId(`add_carrinho_${produtoId}`)
+              .setLabel('Adicionar ao carrinho')
+              .setStyle(ButtonStyle.Primary)
+              .setEmoji('➕'),
+            new ButtonBuilder()
+              .setCustomId(`comprar_agora_${produtoId}`)
+              .setLabel('Comprar agora')
               .setStyle(ButtonStyle.Success)
               .setEmoji('🛒')
           );
@@ -101,7 +106,6 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ Quantidade inválida.', ephemeral: true });
       }
 
-      // Busca produto no banco
       db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], async (err, produto) => {
         if (err || !produto) {
           console.error('Erro ao buscar produto:', err);
@@ -109,10 +113,7 @@ module.exports = async (interaction, client) => {
         }
 
         if (acao === 'comprar') {
-          // Função de criar ticket com quantidade (precisa estar definida no buttonHandler ou aqui)
-          // Como a função criarTicketComQuantidade está no buttonHandler, precisamos importá-la ou recriá-la.
-          // Vamos chamar o buttonHandler para não duplicar código? Melhor ter uma função separada.
-          // Para simplificar, vou colocar a lógica aqui mesmo.
+          // Lógica para criar ticket com quantidade
           const guild = interaction.guild;
           const user = interaction.user;
           const vendedorRole = process.env.VENDEDOR_ROLE_ID;
@@ -121,7 +122,6 @@ module.exports = async (interaction, client) => {
             return interaction.reply({ content: '❌ VENDEDOR_ROLE_ID não configurado.', ephemeral: true });
           }
 
-          // Gera número do pedido
           const pedidoNumero = await new Promise((resolve, reject) => {
             db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
               if (err) reject(err);
@@ -137,7 +137,6 @@ module.exports = async (interaction, client) => {
           const pedidoId = `pedido-${pedidoNumero}`;
           const valorTotal = produto.valor * quantidade;
 
-          // Cria canal
           const ticketChannel = await guild.channels.create({
             name: pedidoId,
             type: 0,
@@ -149,7 +148,6 @@ module.exports = async (interaction, client) => {
             ],
           });
 
-          // Insere pedido
           await new Promise((resolve, reject) => {
             db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, produto_id, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?, ?)`,
               [pedidoId, pedidoNumero, produto.id, user.id, valorTotal, 'aguardando_pagamento'],
