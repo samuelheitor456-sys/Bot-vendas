@@ -90,7 +90,6 @@ async function finalizarCompra(interaction, client) {
     return interaction.editReply({ content: '❌ VENDEDOR_ROLE_ID não configurado.', ephemeral: true });
   }
 
-  // Buscar itens do carrinho
   const itens = await new Promise((resolve, reject) => {
     db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.link 
             FROM carrinho_itens ci
@@ -108,7 +107,6 @@ async function finalizarCompra(interaction, client) {
 
   const total = itens.reduce((acc, i) => acc + i.valor * i.quantidade, 0);
 
-  // Gerar número do pedido
   const pedidoNumero = await new Promise((resolve, reject) => {
     db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
       if (err) reject(err);
@@ -123,7 +121,6 @@ async function finalizarCompra(interaction, client) {
   });
   const pedidoId = `pedido-${pedidoNumero}`;
 
-  // Criar canal de ticket
   const ticketChannel = await guild.channels.create({
     name: pedidoId,
     type: 0,
@@ -135,14 +132,12 @@ async function finalizarCompra(interaction, client) {
     ],
   });
 
-  // Inserir pedido principal
   await new Promise((resolve, reject) => {
     db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?)`,
       [pedidoId, pedidoNumero, user.id, total, 'aguardando_pagamento'],
       function(err) { if (err) reject(err); else resolve(); });
   });
 
-  // Inserir itens do pedido
   for (const item of itens) {
     await new Promise((resolve, reject) => {
       db.run(`INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, valor_unitario) VALUES (?, ?, ?, ?)`,
@@ -150,7 +145,6 @@ async function finalizarCompra(interaction, client) {
     });
   }
 
-  // Limpar carrinho
   await new Promise((resolve, reject) => {
     db.run(`DELETE FROM carrinho_itens WHERE carrinho_id = (SELECT id FROM carrinhos WHERE usuario_id = ?)`, [usuarioId], (err) => {
       if (err) reject(err);
@@ -158,7 +152,6 @@ async function finalizarCompra(interaction, client) {
     });
   });
 
-  // Mensagem no ticket
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`confirmar_${pedidoId}`)
@@ -248,7 +241,6 @@ module.exports = async (interaction, client) => {
   const customId = interaction.customId;
 
   try {
-    // ========== BOTÕES DO PAINEL ADMIN ==========
     if (customId === 'admin_definir_canal') {
       if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
@@ -323,8 +315,7 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
 
-      // Verifica se já existe uma credencial
-      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, result) => { // renomeado para result
+      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, result) => {
         if (err) {
           console.error(err);
           return interaction.reply({ content: '❌ Erro ao verificar credencial.', ephemeral: true });
@@ -336,7 +327,6 @@ module.exports = async (interaction, client) => {
           });
         }
 
-        // Abre o modal para cadastrar
         const modal = new ModalBuilder()
           .setCustomId('modal_credencial')
           .setTitle('🔐 Cadastrar Credencial MP');
@@ -348,9 +338,9 @@ module.exports = async (interaction, client) => {
           .setRequired(true)
           .setPlaceholder('Cole seu Access Token aqui');
 
-        const actionRow = new ActionRowBuilder().addComponents(tokenInput); // renomeado para actionRow
+        const actionRow = new ActionRowBuilder().addComponents(tokenInput);
         modal.addComponents(actionRow);
-        interaction.showModal(modal);
+        await interaction.showModal(modal);
       });
     }
 
@@ -359,7 +349,7 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
 
-      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, result) => { // renomeado
+      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, result) => {
         if (err) {
           console.error(err);
           return interaction.reply({ content: '❌ Erro ao buscar credencial.', ephemeral: true });
@@ -388,7 +378,7 @@ module.exports = async (interaction, client) => {
       });
     }
 
-    // ========== BOTÕES DA CENTRAL DE COMANDOS (CLIENTES) ==========
+    // ========== BOTÕES DA CENTRAL DE COMANDOS ==========
     else if (customId === 'ver_catalogo') {
       await mostrarCatalogo(interaction);
     }
@@ -499,4 +489,14 @@ module.exports = async (interaction, client) => {
 
       await interaction.reply({ content: '✅ Venda confirmada! Fechando em 5s...' });
       db.run(`UPDATE pedidos SET status = 'concluido' WHERE pedido_id = ?`, [pedidoId]);
-      setTimeout(async () => await channel.delete(), 5
+      setTimeout(async () => await channel.delete(), 5000);
+    }
+
+    else if (customId.startsWith('fechar_')) {
+      if (!interaction.member.roles.cache.has(process.env.VENDEDOR_ROLE_ID)) {
+        return interaction.reply({ content: '❌ Apenas vendedores.', ephemeral: true });
+      }
+      const pedidoId = customId.split('_')[1];
+      const channel = interaction.channel;
+      await interaction.reply({ content: '🔒 Fechando ticket...' });
+   
