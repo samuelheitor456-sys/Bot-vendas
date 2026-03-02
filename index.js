@@ -32,8 +32,9 @@ app.post('/webhook', async (req, res) => {
       console.log(`📊 Status: ${payment.body.status}`);
 
       if (payment.body.status === 'approved') {
-        console.log('✅ Pagamento aprovado. Buscando pedido...');
+        console.log('✅ Pagamento aprovado. Buscando pedido no banco...');
 
+        // Primeiro, tenta buscar pelo pagamento_id
         db.get(`SELECT * FROM pedidos WHERE pagamento_id = ?`, [paymentId], async (err, pedido) => {
           if (err) {
             console.error('❌ Erro ao buscar pedido:', err);
@@ -41,6 +42,14 @@ app.post('/webhook', async (req, res) => {
           }
           if (!pedido) {
             console.log('❌ Pedido não encontrado para pagamento_id:', paymentId);
+            // Tenta buscar por outros meios? Não, pois o ID deveria ser único.
+            // Vamos listar todos os pedidos com pagamento_id para depuração.
+            db.all(`SELECT pedido_id, pagamento_id FROM pedidos`, (err2, rows) => {
+              if (!err2) {
+                console.log('📋 Pedidos no banco:');
+                rows.forEach(r => console.log(`  ${r.pedido_id}: ${r.pagamento_id}`));
+              }
+            });
             return res.sendStatus(404);
           }
           console.log('📦 Pedido encontrado:', pedido.pedido_id);
@@ -64,7 +73,7 @@ app.post('/webhook', async (req, res) => {
               await canal.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
               console.log(`✅ Produto entregue no canal ${pedido.pedido_id}`);
             } else {
-              console.log(`⚠️ Canal não encontrado, tentando DM...`);
+              console.log(`⚠️ Canal ${pedido.pedido_id} não encontrado, tentando DM...`);
               try {
                 const user = await client.users.fetch(pedido.comprador_id);
                 if (user) await user.send(`✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`);
@@ -79,7 +88,7 @@ app.post('/webhook', async (req, res) => {
         res.sendStatus(200);
       }
     } catch (error) {
-      console.error('❌ Erro:', error.message);
+      console.error('❌ Erro no webhook:', error.message);
       res.sendStatus(500);
     }
   } else {
