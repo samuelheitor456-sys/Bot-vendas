@@ -63,7 +63,7 @@ async function criarTicket(interaction, produtoId, client) {
 
   await interaction.reply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
 
-  // Mensagem inicial
+  // Mensagem inicial com botões
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`confirmar_${pedidoId}`)
@@ -114,20 +114,18 @@ module.exports = async (interaction, client) => {
         .setCustomId('modal_produto')
         .setTitle('➕ Novo Produto');
 
-      const nomeInput = new TextInputBuilder().setCustomId('nome').setLabel('Nome').setStyle(TextInputStyle.Short).setRequired(true);
-      const descInput = new TextInputBuilder().setCustomId('descricao').setLabel('Descrição').setStyle(TextInputStyle.Paragraph).setRequired(true);
-      const valorInput = new TextInputBuilder().setCustomId('valor').setLabel('Valor (ex: 49.90)').setStyle(TextInputStyle.Short).setRequired(true);
-      const linkInput = new TextInputBuilder().setCustomId('link').setLabel('Link de entrega').setStyle(TextInputStyle.Short).setRequired(true);
-      const imagemInput = new TextInputBuilder().setCustomId('imagem').setLabel('URL da imagem').setStyle(TextInputStyle.Short).setRequired(true);
-      const cargoInput = new TextInputBuilder().setCustomId('cargo').setLabel('ID do cargo (opcional)').setStyle(TextInputStyle.Short).setRequired(false); // 🆕
+      const nomeInput = new TextInputBuilder().setCustomId('nome').setLabel('📦 Nome').setStyle(TextInputStyle.Short).setRequired(true);
+      const descInput = new TextInputBuilder().setCustomId('descricao').setLabel('📝 Descrição').setStyle(TextInputStyle.Paragraph).setRequired(true);
+      const valorInput = new TextInputBuilder().setCustomId('valor').setLabel('💰 Valor (ex: 49.90)').setStyle(TextInputStyle.Short).setRequired(true);
+      const linkInput = new TextInputBuilder().setCustomId('link').setLabel('🔗 Link de entrega').setStyle(TextInputStyle.Short).setRequired(true);
+      const imagemInput = new TextInputBuilder().setCustomId('imagem').setLabel('🖼️ URL da imagem').setStyle(TextInputStyle.Short).setRequired(true);
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(nomeInput),
         new ActionRowBuilder().addComponents(descInput),
         new ActionRowBuilder().addComponents(valorInput),
         new ActionRowBuilder().addComponents(linkInput),
-        new ActionRowBuilder().addComponents(imagemInput),
-        new ActionRowBuilder().addComponents(cargoInput)
+        new ActionRowBuilder().addComponents(imagemInput)
       );
       await interaction.showModal(modal);
 
