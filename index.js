@@ -4,10 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./database/db');
 const express = require('express');
-const mercadopago = require('mercadopago');
-
-// Configura Mercado Pago
-mercadopago.configure({ access_token: process.env.MERCADO_PAGO_ACCESS_TOKEN });
 
 const app = express();
 app.use(express.json());
@@ -16,7 +12,7 @@ app.use(express.json());
 app.get('/', (req, res) => res.send('OK'));
 app.get('/webhook', (req, res) => res.send('Webhook endpoint ativo. Use POST.'));
 
-// Webhook principal
+// Webhook principal (agora obtém o token do banco)
 app.post('/webhook', async (req, res) => {
   console.log('📩 Webhook recebido:', JSON.stringify(req.body, null, 2));
   const { body } = req;
@@ -34,7 +30,7 @@ app.post('/webhook', async (req, res) => {
       // Busca a credencial do banco
       const token = await new Promise((resolve, reject) => {
         db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
-          if (err || !row || !row.value) reject(new Error('Credencial não configurada'));
+          if (err || !row || !row.value) reject(new Error('Credencial do Mercado Pago não configurada. Use /credencial.'));
           else resolve(row.value);
         });
       });
@@ -128,7 +124,6 @@ app.post('/webhook', async (req, res) => {
     res.sendStatus(200);
   }
 });
-          
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
@@ -141,7 +136,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers, // necessário para gerenciar cargos
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates
   ]
 });
