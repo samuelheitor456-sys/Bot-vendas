@@ -64,7 +64,7 @@ app.post('/webhook', async (req, res) => {
 
           db.run(`UPDATE pedidos SET status = 'concluido', concluido_em = datetime('now') WHERE id = ?`, [pedido.id]);
 
-          // Busca os itens do pedido (pode ser um pedido normal ou de carrinho)
+          // Busca os itens do pedido (carrinho) ou produto único
           db.all(`SELECT * FROM pedido_itens WHERE pedido_id = ?`, [pedido.pedido_id], async (err, itens) => {
             if (err) console.error('Erro ao buscar itens do pedido:', err);
 
@@ -85,24 +85,29 @@ app.post('/webhook', async (req, res) => {
                   db.get(`SELECT link FROM produtos WHERE id = ?`, [item.produto_id], (err, row) => resolve(row));
                 });
                 if (produto) {
-                  mensagemEntrega += `- **${item.produto_id}**: ${produto.link}\n`;
+                  mensagemEntrega += `- **Produto ID ${item.produto_id}**: ${produto.link}\n`;
                 }
               }
             } else {
               // Pedido normal (único produto)
-              db.get(`SELECT link FROM produtos WHERE id = ?`, [pedido.produto_id], async (err, produto) => {
-                if (produto) mensagemEntrega = `✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`;
+              const produto = await new Promise((resolve) => {
+                db.get(`SELECT link FROM produtos WHERE id = ?`, [pedido.produto_id], (err, row) => resolve(row));
               });
+              if (produto) {
+                mensagemEntrega = `✅ **Pagamento confirmado!** Aqui está seu produto:\n${produto.link}`;
+              } else {
+                mensagemEntrega = '✅ Pagamento confirmado!';
+              }
             }
 
             if (canal) {
-              await canal.send(mensagemEntrega || '✅ Pagamento confirmado! Produto entregue.');
+              await canal.send(mensagemEntrega);
               console.log(`✅ Produto entregue no canal ${pedido.pedido_id}`);
             } else {
               console.log(`⚠️ Canal não encontrado, enviando DM...`);
               try {
                 const user = await client.users.fetch(pedido.comprador_id);
-                if (user) await user.send(mensagemEntrega || '✅ Pagamento confirmado! Produto entregue.');
+                if (user) await user.send(mensagemEntrega);
               } catch (e) {
                 console.error('❌ Erro ao enviar DM:', e);
               }
