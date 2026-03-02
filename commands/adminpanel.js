@@ -2,8 +2,8 @@ const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, Butt
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('adminpanel')
-    .setDescription('Abre o painel administrativo do bot'),
+    .setName('fixaradmin')
+    .setDescription('Fixa o painel administrativo no canal atual (admin)'),
 
   async execute(interaction) {
     if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
@@ -12,7 +12,7 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor(0x9B59B6)
-      .setTitle('🛠️ **Painel Administrativo**')
+      .setTitle('🛠️ **Painel Administrativo Fixo**')
       .setDescription(`
 Utilize os botões abaixo para gerenciar a loja:
 
@@ -55,6 +55,7 @@ Utilize os botões abaixo para gerenciar a loja:
         .setStyle(ButtonStyle.Secondary)
     );
 
-    await interaction.reply({ embeds: [embed], components: [row1, row2], ephemeral: true });
+    await interaction.channel.send({ embeds: [embed], components: [row1, row2] });
+    await interaction.reply({ content: '✅ Painel fixado no canal!', ephemeral: true });
   }
 };
