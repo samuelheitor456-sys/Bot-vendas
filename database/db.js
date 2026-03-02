@@ -13,7 +13,7 @@ db.serialize(() => {
   db.run(`INSERT OR IGNORE INTO config (key, value) VALUES ('pedido_counter', '0')`);
   db.run(`INSERT OR IGNORE INTO config (key, value) VALUES ('mp_access_token', '')`);
 
-  // Produtos (com cargo_id)
+  // Produtos - com coluna estoque (padrão -1 = ilimitado)
   db.run(`CREATE TABLE IF NOT EXISTS produtos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT,
@@ -23,10 +23,11 @@ db.serialize(() => {
     imagem TEXT,
     canal_id TEXT,
     cargo_id TEXT,
+    estoque INTEGER DEFAULT -1,
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
-  // Pedidos - com pagamento_id como TEXT (sem ".0")
+  // Pedidos
   db.run(`CREATE TABLE IF NOT EXISTS pedidos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pedido_id TEXT UNIQUE,
@@ -112,7 +113,7 @@ db.serialize(() => {
     FOREIGN KEY(pedido_id) REFERENCES pedidos(pedido_id)
   )`);
 
-  console.log('✅ Banco de dados atualizado (todas as tabelas)');
+  console.log('✅ Banco de dados atualizado (estoque adicionado)');
 });
 
 module.exports = db;
