@@ -1,8 +1,6 @@
 const { ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const db = require('../database/db');
 
-// ==================== FUNÇÕES AUXILIARES ====================
-
 async function mostrarCatalogo(interaction) {
   db.all(`SELECT id, nome, valor, imagem FROM produtos ORDER BY id DESC`, (err, rows) => {
     if (err || rows.length === 0) {
@@ -235,8 +233,6 @@ async function adicionarAoCarrinho(interaction, produto, quantidade) {
   });
 }
 
-// ==================== HANDLER PRINCIPAL ====================
-
 module.exports = async (interaction, client) => {
   const customId = interaction.customId;
 
@@ -309,7 +305,6 @@ module.exports = async (interaction, client) => {
       backupCmd.execute(interaction, client);
     }
 
-    // ========== BOTÕES DE CREDENCIAL ==========
     else if (customId === 'cadastrar_credencial') {
       if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
@@ -340,7 +335,7 @@ module.exports = async (interaction, client) => {
 
         const actionRow = new ActionRowBuilder().addComponents(tokenInput);
         modal.addComponents(actionRow);
-        await interaction.showModal(modal);
+        interaction.showModal(modal); // sem await, pois não é async
       });
     }
 
@@ -378,7 +373,6 @@ module.exports = async (interaction, client) => {
       });
     }
 
-    // ========== BOTÕES DA CENTRAL DE COMANDOS ==========
     else if (customId === 'ver_catalogo') {
       await mostrarCatalogo(interaction);
     }
@@ -402,7 +396,6 @@ module.exports = async (interaction, client) => {
       interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    // ========== SELEÇÃO DE PRODUTO NO CATÁLOGO ==========
     else if (customId === 'selecionar_produto_catalogo') {
       const produtoId = interaction.values[0];
       db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], async (err, produto) => {
@@ -440,7 +433,6 @@ module.exports = async (interaction, client) => {
       });
     }
 
-    // ========== BOTÕES DE AÇÃO SOBRE PRODUTO ==========
     else if (customId.startsWith('comprar_agora_')) {
       const produtoId = customId.replace('comprar_agora_', '');
       await abrirModalQuantidade(interaction, produtoId, 'comprar');
@@ -450,7 +442,6 @@ module.exports = async (interaction, client) => {
       await abrirModalQuantidade(interaction, produtoId, 'carrinho');
     }
 
-    // ========== BOTÕES DO CARRINHO ==========
     else if (customId.startsWith('remover_item_')) {
       const itemId = customId.replace('remover_item_', '');
       db.run(`DELETE FROM carrinho_itens WHERE id = ?`, [itemId], function(err) {
@@ -466,7 +457,6 @@ module.exports = async (interaction, client) => {
       await finalizarCompra(interaction, client);
     }
 
-    // ========== BOTÕES DE TICKET ==========
     else if (customId.startsWith('confirmar_')) {
       if (!interaction.member.roles.cache.has(process.env.VENDEDOR_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas vendedores.', ephemeral: true });
@@ -499,4 +489,13 @@ module.exports = async (interaction, client) => {
       const pedidoId = customId.split('_')[1];
       const channel = interaction.channel;
       await interaction.reply({ content: '🔒 Fechando ticket...' });
-   
+      setTimeout(async () => await channel.delete(), 5000);
+    }
+
+    else if (customId.startsWith('copiar_')) {
+      const pedidoId = customId.replace('copiar_', '');
+      db.get(`SELECT qr_code FROM pedidos WHERE pedido_id = ?`, [pedidoId], async (err, row) => {
+        if (err || !row || !row.qr_code) {
+          return interaction.reply({ content: '❌ Chave PIX não encontrada.', ephemeral: true });
+        }
+        aw
