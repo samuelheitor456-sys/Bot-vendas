@@ -27,65 +27,170 @@ async function mostrarCatalogo(interaction) {
 
 async function mostrarCarrinho(interaction) {
   const usuarioId = interaction.user.id;
-  db.all(`SELECT ci.id, p.nome, p.valor, ci.quantidade, p.imagem FROM carrinho_itens ci
+  db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.imagem, p.link 
+          FROM carrinho_itens ci
           JOIN carrinhos c ON ci.carrinho_id = c.id
           JOIN produtos p ON ci.produto_id = p.id
           WHERE c.usuario_id = ?`, [usuarioId], async (err, itens) => {
-    if (err || itens.length === 0) {
+    if (err) {
+      console.error(err);
+      return interaction.reply({ content: '❌ Erro ao buscar carrinho.', ephemeral: true });
+    }
+    if (itens.length === 0) {
       return interaction.reply({ content: '🛒 Seu carrinho está vazio.', ephemeral: true });
     }
 
     let total = 0;
-    const embeds = [];
+    let desc = '';
     const rows = [];
 
     for (let i = 0; i < itens.length; i++) {
       const item = itens[i];
       const subtotal = item.valor * item.quantidade;
       total += subtotal;
-
-      const embed = new EmbedBuilder()
-        .setColor(0x00BFFF)
-        .setTitle(item.nome)
-        .setThumbnail(item.imagem)
-        .addFields(
-          { name: 'Quantidade', value: item.quantidade.toString(), inline: true },
-          { name: 'Preço unitário', value: `R$ ${item.valor.toFixed(2)}`, inline: true },
-          { name: 'Subtotal', value: `R$ ${subtotal.toFixed(2)}`, inline: true }
-        )
-        .setFooter({ text: `Item ID: ${item.id}` });
-
-      embeds.push(embed);
+      desc += `**${item.nome}** x${item.quantidade} - R$ ${subtotal.toFixed(2)}\n`;
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`remover_item_${item.id}`)
-          .setLabel('❌ Remover')
+          .setLabel(`Remover ${item.nome}`)
           .setStyle(ButtonStyle.Danger)
+          .setEmoji('❌')
       );
       rows.push(row);
     }
 
-    const resumoEmbed = new EmbedBuilder()
-      .setColor(0x00FF00)
-      .setTitle('🛒 Resumo do Carrinho')
-      .addFields({ name: 'Total', value: `R$ ${total.toFixed(2)}` });
-
-    embeds.push(resumoEmbed);
+    const embed = new EmbedBuilder()
+      .setColor(0x00BFFF)
+      .setTitle('🛒 Seu Carrinho')
+      .setDescription(desc)
+      .addFields({ name: '💰 Total', value: `R$ ${total.toFixed(2)}` })
+      .setFooter({ text: 'Revise seus itens e finalize a compra.' })
+      .setTimestamp();
 
     const finalizarRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('finalizar_compra')
         .setLabel('✅ Finalizar Compra')
         .setStyle(ButtonStyle.Success)
+        .setEmoji('💳')
     );
 
-    await interaction.reply({ embeds, components: [...rows, finalizarRow], ephemeral: true });
+    await interaction.reply({ embeds: [embed], components: [...rows, finalizarRow], ephemeral: true });
   });
 }
 
+async function finalizarCompra(interaction, client) {
+  const usuarioId = interaction.user.id;
+  const guild = interaction.guild;
+  const user = interaction.user;
+  const vendedorRole = process.env.VENDEDOR_ROLE_ID;
+
+  if (!vendedorRole) {
+    return interaction.editReply({ content: '❌ VENDEDOR_ROLE_ID não configurado.', ephemeral: true });
+  }
+
+  // Buscar itens do carrinho
+  const itens = await new Promise((resolve, reject) => {
+    db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.link 
+            FROM carrinho_itens ci
+            JOIN carrinhos c ON ci.carrinho_id = c.id
+            JOIN produtos p ON ci.produto_id = p.id
+            WHERE c.usuario_id = ?`, [usuarioId], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+
+  if (itens.length === 0) {
+    return interaction.editReply({ content: '❌ Carrinho vazio.', ephemeral: true });
+  }
+
+  const total = itens.reduce((acc, i) => acc + i.valor * i.quantidade, 0);
+
+  // Gerar número do pedido
+  const pedidoNumero = await new Promise((resolve, reject) => {
+    db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
+      if (err) reject(err);
+      else {
+        const next = (parseInt(row?.value || '0') + 1).toString();
+        db.run(`UPDATE config SET value = ? WHERE key = 'pedido_counter'`, [next], (err2) => {
+          if (err2) reject(err2);
+          else resolve(next);
+        });
+      }
+    });
+  });
+  const pedidoId = `pedido-${pedidoNumero}`;
+
+  // Criar canal de ticket
+  const ticketChannel = await guild.channels.create({
+    name: pedidoId,
+    type: 0,
+    permissionOverwrites: [
+      { id: guild.id, deny: ['ViewChannel'] },
+      { id: user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
+      { id: vendedorRole, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
+      { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] }
+    ],
+  });
+
+  // Inserir pedido principal
+  await new Promise((resolve, reject) => {
+    db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?)`,
+      [pedidoId, pedidoNumero, user.id, total, 'aguardando_pagamento'],
+      function(err) { if (err) reject(err); else resolve(); });
+  });
+
+  // Inserir itens do pedido
+  for (const item of itens) {
+    await new Promise((resolve, reject) => {
+      db.run(`INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, valor_unitario) VALUES (?, ?, ?, ?)`,
+        [pedidoId, item.produto_id, item.quantidade, item.valor], function(err) { if (err) reject(err); else resolve(); });
+    });
+  }
+
+  // Limpar carrinho
+  await new Promise((resolve, reject) => {
+    db.run(`DELETE FROM carrinho_itens WHERE carrinho_id = (SELECT id FROM carrinhos WHERE usuario_id = ?)`, [usuarioId], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+
+  // Mensagem no ticket
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`confirmar_${pedidoId}`)
+      .setLabel('✅ CONFIRMAR VENDA')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`fechar_${pedidoId}`)
+      .setLabel('❌ FECHAR TICKET')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  let descItens = itens.map(i => `**${i.nome}** x${i.quantidade} - R$ ${(i.valor * i.quantidade).toFixed(2)}`).join('\n');
+  const mensagem = `
+━━━━━━━━━━━━━━━━━━━━━━━━
+**🛒 NOVO PEDIDO (CARRINHO)** • <@&${vendedorRole}>
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+**👤 Cliente:** ${user}
+**📦 Itens:**
+${descItens}
+
+**💰 Valor total:** **R$ ${total.toFixed(2)}**
+
+📌 Digite \`/email seu@email.com\` para gerar o PIX.
+━━━━━━━━━━━━━━━━━━━━━━━━
+  `;
+
+  await ticketChannel.send({ content: mensagem, components: [row] });
+  await interaction.editReply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
+}
+
 async function abrirModalQuantidade(interaction, produtoId, acao) {
-  console.log(`Abrindo modal para produto ${produtoId}, ação ${acao}`);
   const modal = new ModalBuilder()
     .setCustomId('modal_quantidade')
     .setTitle('Quantidade');
@@ -118,76 +223,6 @@ async function abrirModalQuantidade(interaction, produtoId, acao) {
   );
 
   await interaction.showModal(modal);
-}
-
-async function criarTicketComQuantidade(interaction, produto, quantidade, client) {
-  const guild = interaction.guild;
-  const user = interaction.user;
-  const vendedorRole = process.env.VENDEDOR_ROLE_ID;
-
-  if (!vendedorRole) {
-    throw new Error('VENDEDOR_ROLE_ID não configurado');
-  }
-
-  const pedidoNumero = await new Promise((resolve, reject) => {
-    db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
-      if (err) reject(err);
-      else {
-        const next = (parseInt(row?.value || '0') + 1).toString();
-        db.run(`UPDATE config SET value = ? WHERE key = 'pedido_counter'`, [next], (err2) => {
-          if (err2) reject(err2);
-          else resolve(next);
-        });
-      }
-    });
-  });
-  const pedidoId = `pedido-${pedidoNumero}`;
-  const valorTotal = produto.valor * quantidade;
-
-  const ticketChannel = await guild.channels.create({
-    name: pedidoId,
-    type: 0,
-    permissionOverwrites: [
-      { id: guild.id, deny: ['ViewChannel'] },
-      { id: user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
-      { id: vendedorRole, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
-      { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] }
-    ],
-  });
-
-  await new Promise((resolve, reject) => {
-    db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, produto_id, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      [pedidoId, pedidoNumero, produto.id, user.id, valorTotal, 'aguardando_pagamento'],
-      function(err) { if (err) reject(err); else resolve(); });
-  });
-
-  await interaction.reply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`confirmar_${pedidoId}`)
-      .setLabel('✅ CONFIRMAR VENDA')
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`fechar_${pedidoId}`)
-      .setLabel('❌ FECHAR TICKET')
-      .setStyle(ButtonStyle.Danger)
-  );
-
-  const mensagem = `
-━━━━━━━━━━━━━━━━━━━━━━━━
-**🛒 NOVO PEDIDO** • <@&${vendedorRole}>
-━━━━━━━━━━━━━━━━━━━━━━━━
-
-**👤 Cliente:** ${user}
-**🛍️ Produto:** **${produto.nome}** x${quantidade}
-**💰 Valor total:** **R$ ${valorTotal.toFixed(2)}**
-
-📌 Digite \`/email seu@email.com\` para gerar o PIX.
-━━━━━━━━━━━━━━━━━━━━━━━━
-`;
-
-  await ticketChannel.send({ content: mensagem, components: [row] });
 }
 
 async function adicionarAoCarrinho(interaction, produto, quantidade) {
@@ -311,32 +346,33 @@ module.exports = async (interaction, client) => {
       const produtoId = interaction.values[0];
       db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], async (err, produto) => {
         if (err || !produto) {
-          console.error('Erro ao buscar produto:', err);
           return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
         }
 
         const embed = new EmbedBuilder()
           .setColor(0x9B59B6)
-          .setTitle(produto.nome)
-          .setDescription(produto.descricao)
-          .setThumbnail(produto.imagem)
+          .setTitle('🛡️ Compra Segura')
+          .setDescription(`**${produto.nome}**\n${produto.descricao}`)
           .addFields(
-            { name: '💰 Preço', value: `R$ ${produto.valor.toFixed(2)}`, inline: true },
-            { name: '🆔 ID', value: produto.id.toString(), inline: true }
+            { name: 'Valor', value: `R$ ${produto.valor.toFixed(2)}`, inline: true },
+            { name: 'Estoque', value: 'Ilimitado', inline: true },
+            { name: 'Entrega', value: 'Automática', inline: true }
           )
-          .setFooter({ text: 'Escolha uma opção' });
+          .setImage(produto.imagem)
+          .setFooter({ text: 'BOT DE VENDAS PRIME WOLF PACK' })
+          .setTimestamp();
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
-            .setCustomId(`comprar_agora_${produto.id}`)
-            .setLabel('🛒 Comprar Agora')
-            .setStyle(ButtonStyle.Success)
-            .setEmoji('🛒'),
-          new ButtonBuilder()
             .setCustomId(`add_carrinho_${produto.id}`)
-            .setLabel('➕ Adicionar ao Carrinho')
+            .setLabel('Adicionar ao carrinho')
             .setStyle(ButtonStyle.Primary)
-            .setEmoji('➕')
+            .setEmoji('➕'),
+          new ButtonBuilder()
+            .setCustomId(`comprar_agora_${produto.id}`)
+            .setLabel('Comprar agora')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('🛒')
         );
 
         await interaction.update({ embeds: [embed], components: [row] });
@@ -365,33 +401,8 @@ module.exports = async (interaction, client) => {
       });
     }
     else if (customId === 'finalizar_compra') {
-      const usuarioId = interaction.user.id;
-      db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade FROM carrinho_itens ci
-              JOIN carrinhos c ON ci.carrinho_id = c.id
-              JOIN produtos p ON ci.produto_id = p.id
-              WHERE c.usuario_id = ?`, [usuarioId], async (err, itens) => {
-        if (err || itens.length === 0) {
-          return interaction.reply({ content: '❌ Carrinho vazio.', ephemeral: true });
-        }
-
-        let total = itens.reduce((acc, i) => acc + i.valor * i.quantidade, 0);
-        const pedidoNumero = await new Promise((resolve, reject) => {
-          db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
-            if (err) reject(err);
-            else {
-              const next = (parseInt(row?.value || '0') + 1).toString();
-              db.run(`UPDATE config SET value = ? WHERE key = 'pedido_counter'`, [next], (err2) => {
-                if (err2) reject(err2);
-                else resolve(next);
-              });
-            }
-          });
-        });
-        const pedidoId = `pedido-${pedidoNumero}`;
-
-        // Aqui você pode criar um pedido com os itens (requer adaptação)
-        interaction.reply({ content: '⏳ Funcionalidade de finalizar carrinho em desenvolvimento. Use a compra direta.', ephemeral: true });
-      });
+      await interaction.deferReply({ ephemeral: true });
+      await finalizarCompra(interaction, client);
     }
 
     // ========== BOTÕES DE TICKET ==========
