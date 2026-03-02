@@ -33,7 +33,7 @@ module.exports = async function gerarPix(pedido, email) {
             else if (row && row.pagamento_id === payment.id) {
               console.log('✅ Verificação: pagamento_id corresponde.');
             } else {
-              console.error('❌ Verificação falhou: pagamento_id não corresponde.');
+              console.error('❌ Verificação falhou: pagamento_id não corresponde. Esperado:', payment.id, 'Encontrado:', row?.pagamento_id);
             }
           });
           resolve();
