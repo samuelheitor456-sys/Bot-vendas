@@ -317,6 +317,77 @@ module.exports = async (interaction, client) => {
       backupCmd.execute(interaction, client);
     }
 
+    // ========== BOTÕES DE CREDENCIAL ==========
+    else if (customId === 'cadastrar_credencial') {
+      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+        return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
+      }
+
+      // Verifica se já existe uma credencial
+      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
+        if (err) {
+          console.error(err);
+          return interaction.reply({ content: '❌ Erro ao verificar credencial.', ephemeral: true });
+        }
+        if (row && row.value) {
+          return interaction.reply({ 
+            content: '⚠️ Já existe uma credencial cadastrada. Use o botão "Excluir Credencial" antes de cadastrar uma nova.', 
+            ephemeral: true 
+          });
+        }
+
+        // Abre o modal para cadastrar
+        const modal = new ModalBuilder()
+          .setCustomId('modal_credencial')
+          .setTitle('🔐 Cadastrar Credencial MP');
+
+        const tokenInput = new TextInputBuilder()
+          .setCustomId('token')
+          .setLabel('Access Token (TEST- ou APP-)')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder('Cole seu Access Token aqui');
+
+        const row = new ActionRowBuilder().addComponents(tokenInput);
+        modal.addComponents(row);
+        interaction.showModal(modal);
+      });
+    }
+
+    else if (customId === 'log_credencial') {
+      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+        return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
+      }
+
+      db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
+        if (err) {
+          console.error(err);
+          return interaction.reply({ content: '❌ Erro ao buscar credencial.', ephemeral: true });
+        }
+        if (!row || !row.value) {
+          return interaction.reply({ content: 'ℹ️ Nenhuma credencial cadastrada ainda.', ephemeral: true });
+        }
+        interaction.reply({ content: `🔑 Credencial atual: \`${row.value}\``, ephemeral: true });
+      });
+    }
+
+    else if (customId === 'excluir_credencial') {
+      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+        return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
+      }
+
+      db.run(`DELETE FROM config WHERE key = 'mp_access_token'`, function(err) {
+        if (err) {
+          console.error(err);
+          return interaction.reply({ content: '❌ Erro ao excluir credencial.', ephemeral: true });
+        }
+        if (this.changes === 0) {
+          return interaction.reply({ content: 'ℹ️ Nenhuma credencial estava cadastrada.', ephemeral: true });
+        }
+        interaction.reply({ content: '✅ Credencial excluída com sucesso!', ephemeral: true });
+      });
+    }
+
     // ========== BOTÕES DA CENTRAL DE COMANDOS (CLIENTES) ==========
     else if (customId === 'ver_catalogo') {
       await mostrarCatalogo(interaction);
@@ -432,46 +503,4 @@ module.exports = async (interaction, client) => {
     }
 
     else if (customId.startsWith('fechar_')) {
-      if (!interaction.member.roles.cache.has(process.env.VENDEDOR_ROLE_ID)) {
-        return interaction.reply({ content: '❌ Apenas vendedores.', ephemeral: true });
-      }
-      const pedidoId = customId.split('_')[1];
-      const channel = interaction.channel;
-      await interaction.reply({ content: '🔒 Fechando ticket...' });
-      setTimeout(async () => await channel.delete(), 5000);
-    }
-
-    else if (customId.startsWith('copiar_')) {
-      const pedidoId = customId.replace('copiar_', '');
-      db.get(`SELECT qr_code FROM pedidos WHERE pedido_id = ?`, [pedidoId], async (err, row) => {
-        if (err || !row || !row.qr_code) {
-          return interaction.reply({ content: '❌ Chave PIX não encontrada.', ephemeral: true });
-        }
-        await interaction.reply({
-          content: `🔑 **Chave PIX (copia e cola):**\n\`${row.qr_code}\``,
-          ephemeral: true
-        });
-      });
-    }
-
-    // ========== SELEÇÃO DE CANAL (definir canal de vendas) ==========
-    else if (customId === 'selecionar_canal') {
-      const canalId = interaction.values[0];
-      db.run(`INSERT OR REPLACE INTO config (key, value) VALUES ('canal_vendas', ?)`, [canalId], (err) => {
-        if (err) {
-          console.error(err);
-          return interaction.reply({ content: '❌ Erro ao salvar configuração.', ephemeral: true });
-        }
-        interaction.reply({ content: `✅ Canal de vendas definido para <#${canalId}>.`, ephemeral: true });
-      });
-    }
-
-  } catch (error) {
-    console.error('❌ Erro no buttonHandler:', error);
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: `❌ Erro: ${error.message}`, ephemeral: true });
-    } else if (interaction.deferred && !interaction.replied) {
-      await interaction.editReply({ content: `❌ Erro: ${error.message}` });
-    }
-  }
-};
+      if (!interaction.member.roles.cac
