@@ -27,6 +27,15 @@ module.exports = async function gerarPix(pedido, email) {
           reject(err);
         } else {
           console.log('✅ pagamento_id salvo:', payment.id);
+          // Verifica se realmente salvou
+          db.get(`SELECT pagamento_id FROM pedidos WHERE pedido_id = ?`, [pedido.pedido_id], (err2, row) => {
+            if (err2) console.error('Erro ao verificar:', err2);
+            else if (row && row.pagamento_id === payment.id) {
+              console.log('✅ Verificação: pagamento_id corresponde.');
+            } else {
+              console.error('❌ Verificação falhou: pagamento_id não corresponde.');
+            }
+          });
           resolve();
         }
       }
