@@ -3,15 +3,31 @@ const db = require('../database/db');
 
 module.exports = async (interaction, client) => {
   try {
-    // Modal de produto (adicionar produto)
-    if (interaction.customId === 'modal_produto') {
+    // ========== MODAL DE CREDENCIAL ==========
+    if (interaction.customId === 'modal_credencial') {
+      const token = interaction.fields.getTextInputValue('token');
+
+      if (!token.startsWith('TEST-') && !token.startsWith('APP-') && !token.startsWith('TEST_') && !token.startsWith('APP_')) {
+        return interaction.reply({ content: '❌ Token inválido. Deve começar com TEST- ou APP- (ou _).', ephemeral: true });
+      }
+
+      db.run(`INSERT OR REPLACE INTO config (key, value) VALUES ('mp_access_token', ?)`, [token], function(err) {
+        if (err) {
+          console.error(err);
+          return interaction.reply({ content: '❌ Erro ao salvar credencial.', ephemeral: true });
+        }
+        interaction.reply({ content: '✅ Credencial salva com sucesso! O bot já pode gerar PIX.', ephemeral: true });
+      });
+    }
+
+    // ========== MODAL DE PRODUTO ==========
+    else if (interaction.customId === 'modal_produto') {
       const nome = interaction.fields.getTextInputValue('nome');
       const descricao = interaction.fields.getTextInputValue('descricao');
       const valor = parseFloat(interaction.fields.getTextInputValue('valor'));
       const link = interaction.fields.getTextInputValue('link');
       const imagem = interaction.fields.getTextInputValue('imagem');
 
-      // Validações
       if (isNaN(valor) || valor <= 0) {
         return interaction.reply({ content: '❌ Valor inválido.', ephemeral: true });
       }
@@ -19,32 +35,20 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ URL da imagem deve começar com http:// ou https://', ephemeral: true });
       }
 
-      // Tenta pegar o canal de vendas configurado, se não existir, usa o canal atual
       let canalId = await new Promise((resolve) => {
         db.get(`SELECT value FROM config WHERE key = 'canal_vendas'`, (err, row) => {
-          if (err) {
-            console.error('Erro ao buscar canal_vendas:', err);
-            resolve(null);
-          } else {
-            resolve(row?.value || null);
-          }
+          resolve(row?.value || null);
         });
       });
 
       let canal;
-      if (canalId) {
-        canal = client.channels.cache.get(canalId);
-      }
-      if (!canal) {
-        canal = interaction.channel; // fallback para o canal atual
-        console.log('⚠️ Canal de vendas não configurado, usando canal atual.');
-      }
+      if (canalId) canal = client.channels.cache.get(canalId);
+      if (!canal) canal = interaction.channel;
 
       if (!canal) {
         return interaction.reply({ content: '❌ Não foi possível determinar um canal para publicar o produto.', ephemeral: true });
       }
 
-      // Insere produto no banco
       db.run(`INSERT INTO produtos (nome, descricao, valor, link, imagem, canal_id) VALUES (?, ?, ?, ?, ?, ?)`,
         [nome, descricao, valor, link, imagem, canal.id],
         function(err) {
@@ -55,7 +59,6 @@ module.exports = async (interaction, client) => {
 
           const produtoId = this.lastID;
 
-          // Embed do produto com um único campo para todos os detalhes (garante linha horizontal)
           const embed = new EmbedBuilder()
             .setColor(0x9B59B6)
             .setTitle('🛡️ Compra Segura')
@@ -68,7 +71,6 @@ module.exports = async (interaction, client) => {
             .setFooter({ text: `BOT DE VENDAS PRIME WOLF PACK | Hoje às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` })
             .setTimestamp();
 
-          // Botões: Adicionar ao carrinho e Comprar agora
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
               .setCustomId(`add_carrinho_${produtoId}`)
@@ -82,7 +84,6 @@ module.exports = async (interaction, client) => {
               .setEmoji('🛒')
           );
 
-          // Envia no canal
           canal.send({ embeds: [embed], components: [row] })
             .then(() => {
               interaction.reply({ content: '✅ Produto publicado com sucesso!', ephemeral: true });
@@ -95,7 +96,7 @@ module.exports = async (interaction, client) => {
       );
     }
 
-    // Modal de quantidade (para comprar/adicionar ao carrinho)
+    // ========== MODAL DE QUANTIDADE ==========
     else if (interaction.customId === 'modal_quantidade') {
       const quantidade = parseInt(interaction.fields.getTextInputValue('quantidade'));
       const produtoId = interaction.fields.getTextInputValue('produto_id');
@@ -107,12 +108,11 @@ module.exports = async (interaction, client) => {
 
       db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], async (err, produto) => {
         if (err || !produto) {
-          console.error('Erro ao buscar produto:', err);
           return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
         }
 
         if (acao === 'comprar') {
-          // Lógica para criar ticket com quantidade
+          // Lógica de compra direta com quantidade
           const guild = interaction.guild;
           const user = interaction.user;
           const vendedorRole = process.env.VENDEDOR_ROLE_ID;
@@ -182,7 +182,6 @@ module.exports = async (interaction, client) => {
           await ticketChannel.send({ content: mensagem, components: [row] });
         }
         else if (acao === 'carrinho') {
-          // Adiciona ao carrinho
           const usuarioId = interaction.user.id;
           db.run(`INSERT INTO carrinhos (usuario_id) VALUES (?) ON CONFLICT(usuario_id) DO NOTHING`, [usuarioId]);
           db.get(`SELECT id FROM carrinhos WHERE usuario_id = ?`, [usuarioId], (err, carrinho) => {
