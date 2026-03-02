@@ -5,6 +5,7 @@ async function criarTicket(interaction, produtoId, client) {
   const guild = interaction.guild;
   const user = interaction.user;
 
+  // Busca próximo número de pedido
   const pedidoNumero = await new Promise((resolve, reject) => {
     db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
       if (err) reject(err);
@@ -20,6 +21,7 @@ async function criarTicket(interaction, produtoId, client) {
 
   const pedidoId = `pedido-${pedidoNumero}`;
 
+  // Busca produto (incluindo cargo_id)
   const produto = await new Promise((resolve, reject) => {
     db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], (err, row) => {
       if (err) reject(err);
@@ -36,6 +38,7 @@ async function criarTicket(interaction, produtoId, client) {
     throw new Error('Bot não tem permissão "Gerenciar Canais".');
   }
 
+  // Cria canal
   const ticketChannel = await guild.channels.create({
     name: pedidoId,
     type: 0,
@@ -47,6 +50,7 @@ async function criarTicket(interaction, produtoId, client) {
     ],
   });
 
+  // Insere pedido
   await new Promise((resolve, reject) => {
     db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, produto_id, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?, ?)`,
       [pedidoId, pedidoNumero, produtoId, user.id, produto.valor, 'aguardando_pagamento'],
@@ -59,6 +63,7 @@ async function criarTicket(interaction, produtoId, client) {
 
   await interaction.reply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
 
+  // Mensagem inicial
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`confirmar_${pedidoId}`)
@@ -114,13 +119,15 @@ module.exports = async (interaction, client) => {
       const valorInput = new TextInputBuilder().setCustomId('valor').setLabel('Valor (ex: 49.90)').setStyle(TextInputStyle.Short).setRequired(true);
       const linkInput = new TextInputBuilder().setCustomId('link').setLabel('Link de entrega').setStyle(TextInputStyle.Short).setRequired(true);
       const imagemInput = new TextInputBuilder().setCustomId('imagem').setLabel('URL da imagem').setStyle(TextInputStyle.Short).setRequired(true);
+      const cargoInput = new TextInputBuilder().setCustomId('cargo').setLabel('ID do cargo (opcional)').setStyle(TextInputStyle.Short).setRequired(false); // 🆕
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(nomeInput),
         new ActionRowBuilder().addComponents(descInput),
         new ActionRowBuilder().addComponents(valorInput),
         new ActionRowBuilder().addComponents(linkInput),
-        new ActionRowBuilder().addComponents(imagemInput)
+        new ActionRowBuilder().addComponents(imagemInput),
+        new ActionRowBuilder().addComponents(cargoInput)
       );
       await interaction.showModal(modal);
 
@@ -134,6 +141,21 @@ module.exports = async (interaction, client) => {
       }
       const pedidoId = customId.split('_')[1];
       const channel = interaction.channel;
+
+      // Buscar produto associado ao pedido para obter cargo_id
+      db.get(`SELECT produto_id FROM pedidos WHERE pedido_id = ?`, [pedidoId], (err, row) => {
+        if (!err && row) {
+          db.get(`SELECT cargo_id FROM produtos WHERE id = ?`, [row.produto_id], (err2, produto) => {
+            if (!err2 && produto && produto.cargo_id) {
+              const member = channel.guild.members.cache.get(interaction.user.id);
+              if (member) {
+                member.roles.add(produto.cargo_id).catch(console.error);
+              }
+            }
+          });
+        }
+      });
+
       await interaction.reply({ content: '✅ Venda confirmada! Fechando em 5s...' });
       db.run(`UPDATE pedidos SET status = 'concluido' WHERE pedido_id = ?`, [pedidoId]);
       setTimeout(async () => await channel.delete(), 5000);
