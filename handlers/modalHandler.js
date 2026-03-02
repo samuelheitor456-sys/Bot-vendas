@@ -9,6 +9,7 @@ module.exports = async (interaction, client) => {
   const valor = parseFloat(interaction.fields.getTextInputValue('valor'));
   const link = interaction.fields.getTextInputValue('link');
   const imagem = interaction.fields.getTextInputValue('imagem');
+  const cargoId = interaction.fields.getTextInputValue('cargo'); // 🆕 ID do cargo
 
   if (!imagem.startsWith('http')) {
     return interaction.reply({ content: '❌ URL da imagem deve começar com http:// ou https://', ephemeral: true });
@@ -29,25 +30,31 @@ module.exports = async (interaction, client) => {
     return interaction.reply({ content: '❌ Canal inválido.', ephemeral: true });
   }
 
-  db.run(`INSERT INTO produtos (nome, descricao, valor, link, imagem, canal_id) VALUES (?, ?, ?, ?, ?, ?)`,
-    [nome, descricao, valor, link, imagem, canalId], function(err) {
+  db.run(`INSERT INTO produtos (nome, descricao, valor, link, imagem, canal_id, cargo_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [nome, descricao, valor, link, imagem, canalId, cargoId || null], function(err) {
       if (err) {
         console.error(err);
         return interaction.reply({ content: '❌ Erro ao salvar.', ephemeral: true });
       }
 
       const produtoId = this.lastID;
+
+      // 🎨 EMBED PROFISSIONAL E CENTRALIZADO
       const embed = new EmbedBuilder()
-        .setColor(0x5865F2)
+        .setColor(0x9B59B6) // Roxo elegante
         .setAuthor({ name: '🛍️ NOVO PRODUTO' })
-        .setTitle(nome)
-        .setDescription(descricao)
-        .setThumbnail(imagem)
+        .setTitle(`**${nome}**`)
+        .setDescription(`\`\`\`\n${descricao}\n\`\`\``) // Descrição em bloco de código para centralização
+        .setThumbnail(imagem) // Imagem no canto superior direito
         .addFields(
-          { name: '💰 Preço', value: `R$ ${valor.toFixed(2)}`, inline: true },
-          { name: '📦 Estoque', value: '✅ Disponível', inline: true }
+          { name: '💰 **Preço**', value: `**R$ ${valor.toFixed(2)}**`, inline: true },
+          { name: '🎁 **Bônus**', value: cargoId ? `<@&${cargoId}> incluso` : '❌ Sem cargo', inline: true },
+          { name: '📦 **Estoque**', value: '✅ Ilimitado', inline: true }
         )
-        .setFooter({ text: `ID: ${produtoId} • PIX seguro` })
+        .setFooter({ 
+          text: `ID: ${produtoId} • Pagamento via PIX • Entrega automática`, 
+          iconURL: 'https://cdn.discordapp.com/emojis/1234567890.png' 
+        })
         .setTimestamp();
 
       const row = new ActionRowBuilder().addComponents(
@@ -55,9 +62,11 @@ module.exports = async (interaction, client) => {
           .setCustomId(`comprar_${produtoId}`)
           .setLabel('🛒 Adicionar ao carrinho')
           .setStyle(ButtonStyle.Success)
+          .setEmoji('🛒')
       );
 
       canal.send({ embeds: [embed], components: [row] });
-      interaction.reply({ content: '✅ Produto publicado!', ephemeral: true });
+
+      interaction.reply({ content: '✅ Produto publicado com sucesso!', ephemeral: true });
     });
 };
