@@ -103,6 +103,15 @@ db.serialize(() => {
     FOREIGN KEY(afiliado_id) REFERENCES afiliados(usuario_id)
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS pedido_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pedido_id TEXT,
+  produto_id INTEGER,
+  quantidade INTEGER,
+  valor_unitario REAL,
+  FOREIGN KEY(pedido_id) REFERENCES pedidos(pedido_id)
+)`);
+
   console.log('✅ Banco de dados atualizado (todas as tabelas)');
 });
 
