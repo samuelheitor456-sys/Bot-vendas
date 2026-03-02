@@ -12,8 +12,6 @@ const app = express();
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('OK'));
-app.get('/webhook', (req, res) => res.send('Webhook endpoint ativo. Use POST.'));
-
 app.post('/webhook', async (req, res) => {
   console.log('📩 Webhook recebido:', JSON.stringify(req.body, null, 2));
   const { body } = req;
@@ -34,7 +32,6 @@ app.post('/webhook', async (req, res) => {
       if (payment.body.status === 'approved') {
         console.log('✅ Pagamento aprovado. Buscando pedido no banco...');
 
-        // Primeiro, tenta buscar pelo pagamento_id
         db.get(`SELECT * FROM pedidos WHERE pagamento_id = ?`, [paymentId], async (err, pedido) => {
           if (err) {
             console.error('❌ Erro ao buscar pedido:', err);
@@ -42,8 +39,7 @@ app.post('/webhook', async (req, res) => {
           }
           if (!pedido) {
             console.log('❌ Pedido não encontrado para pagamento_id:', paymentId);
-            // Tenta buscar por outros meios? Não, pois o ID deveria ser único.
-            // Vamos listar todos os pedidos com pagamento_id para depuração.
+            // Lista todos os pedidos para depuração
             db.all(`SELECT pedido_id, pagamento_id FROM pedidos`, (err2, rows) => {
               if (!err2) {
                 console.log('📋 Pedidos no banco:');
