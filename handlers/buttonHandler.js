@@ -4,7 +4,6 @@ const db = require('../database/db');
 // ==================== FUNÇÕES AUXILIARES ====================
 
 async function mostrarCatalogo(interaction) {
-  // Mostra apenas produtos com estoque disponível (>0 ou ilimitado -1)
   db.all(`SELECT id, nome, valor, imagem, estoque FROM produtos WHERE estoque != 0 ORDER BY id DESC`, (err, rows) => {
     if (err || rows.length === 0) {
       return interaction.reply({ content: '📭 Nenhum produto disponível.', ephemeral: true });
@@ -96,7 +95,6 @@ async function finalizarCompra(interaction, client) {
     return interaction.editReply({ content: '❌ VENDEDOR_ROLE_ID não configurado.', ephemeral: true });
   }
 
-  // Buscar itens do carrinho com informações de estoque
   const itens = await new Promise((resolve, reject) => {
     db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.link, p.descricao, p.estoque
             FROM carrinho_itens ci
@@ -112,7 +110,6 @@ async function finalizarCompra(interaction, client) {
     return interaction.editReply({ content: '❌ Carrinho vazio.', ephemeral: true });
   }
 
-  // Verificar estoque para cada item
   for (const item of itens) {
     if (item.estoque !== -1 && item.estoque < item.quantidade) {
       return interaction.editReply({ 
@@ -124,7 +121,6 @@ async function finalizarCompra(interaction, client) {
 
   const total = itens.reduce((acc, i) => acc + i.valor * i.quantidade, 0);
 
-  // Gerar número do pedido
   const pedidoNumero = await new Promise((resolve, reject) => {
     db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
       if (err) reject(err);
@@ -139,7 +135,6 @@ async function finalizarCompra(interaction, client) {
   });
   const pedidoId = `pedido-${pedidoNumero}`;
 
-  // Criar canal de ticket
   const ticketChannel = await guild.channels.create({
     name: pedidoId,
     type: 0,
@@ -151,21 +146,18 @@ async function finalizarCompra(interaction, client) {
     ],
   });
 
-  // Inserir pedido principal
   await new Promise((resolve, reject) => {
     db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?)`,
       [pedidoId, pedidoNumero, user.id, total, 'aguardando_pagamento'],
       function(err) { if (err) reject(err); else resolve(); });
   });
 
-  // Inserir itens do pedido e dar baixa no estoque
   for (const item of itens) {
     await new Promise((resolve, reject) => {
       db.run(`INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, valor_unitario) VALUES (?, ?, ?, ?)`,
         [pedidoId, item.produto_id, item.quantidade, item.valor], function(err) { if (err) reject(err); else resolve(); });
     });
 
-    // Dar baixa no estoque (apenas se não for ilimitado)
     if (item.estoque !== -1) {
       const novoEstoque = item.estoque - item.quantidade;
       await new Promise((resolve, reject) => {
@@ -176,7 +168,6 @@ async function finalizarCompra(interaction, client) {
     }
   }
 
-  // Limpar carrinho
   await new Promise((resolve, reject) => {
     db.run(`DELETE FROM carrinho_itens WHERE carrinho_id = (SELECT id FROM carrinhos WHERE usuario_id = ?)`, [usuarioId], (err) => {
       if (err) reject(err);
@@ -184,7 +175,6 @@ async function finalizarCompra(interaction, client) {
     });
   });
 
-  // ==================== MENSAGEM PROFISSIONAL DO TICKET ====================
   const embed = new EmbedBuilder()
     .setColor(0x9B59B6)
     .setTitle(`🛒 **COMPRA DO PEDIDO ${pedidoNumero}**`)
@@ -292,6 +282,25 @@ async function adicionarAoCarrinho(interaction, produto, quantidade) {
   });
 }
 
+async function mostrarListaProdutosParaSelecao(interaction, acao) {
+  db.all(`SELECT id, nome, valor FROM produtos ORDER BY id`, (err, rows) => {
+    if (err || rows.length === 0) {
+      return interaction.reply({ content: '📭 Nenhum produto cadastrado.', ephemeral: true });
+    }
+    const options = rows.map(p => ({
+      label: p.nome,
+      description: `ID: ${p.id} - R$ ${p.valor.toFixed(2)}`,
+      value: p.id.toString()
+    }));
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId(`selecionar_produto_${acao}`)
+      .setPlaceholder('Escolha um produto')
+      .addOptions(options);
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+    interaction.reply({ content: `Selecione o produto para ${acao === 'cargo' ? 'adicionar cargo' : 'ajustar estoque'}:`, components: [row], ephemeral: true });
+  });
+}
+
 // ==================== HANDLER PRINCIPAL ====================
 
 module.exports = async (interaction, client) => {
@@ -321,24 +330,17 @@ module.exports = async (interaction, client) => {
       if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
-      const modal = new ModalBuilder()
-        .setCustomId('modal_produto')
-        .setTitle('➕ Novo Produto');
-
-      const nomeInput = new TextInputBuilder().setCustomId('nome').setLabel('📦 Nome').setStyle(TextInputStyle.Short).setRequired(true);
-      const descInput = new TextInputBuilder().setCustomId('descricao').setLabel('📝 Descrição').setStyle(TextInputStyle.Paragraph).setRequired(true);
-      const valorInput = new TextInputBuilder().setCustomId('valor').setLabel('💰 Valor (ex: 49.90)').setStyle(TextInputStyle.Short).setRequired(true);
-      const linkInput = new TextInputBuilder().setCustomId('link').setLabel('🔗 Link de entrega').setStyle(TextInputStyle.Short).setRequired(true);
-      const imagemInput = new TextInputBuilder().setCustomId('imagem').setLabel('🖼️ URL da imagem').setStyle(TextInputStyle.Short).setRequired(true);
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(nomeInput),
-        new ActionRowBuilder().addComponents(descInput),
-        new ActionRowBuilder().addComponents(valorInput),
-        new ActionRowBuilder().addComponents(linkInput),
-        new ActionRowBuilder().addComponents(imagemInput)
-      );
-      await interaction.showModal(modal);
+      const channels = interaction.guild.channels.cache
+        .filter(c => c.type === 0)
+        .map(c => ({ label: c.name, value: c.id }))
+        .slice(0, 25);
+      if (channels.length === 0) return interaction.reply({ content: '❌ Nenhum canal de texto.', ephemeral: true });
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('selecionar_canal_para_produto')
+        .setPlaceholder('Escolha o canal para publicar o produto')
+        .addOptions(channels);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      await interaction.reply({ content: '📍 Selecione o canal:', components: [row], ephemeral: true });
     }
 
     else if (customId === 'admin_listar_produtos') {
@@ -368,6 +370,20 @@ module.exports = async (interaction, client) => {
       }
       const backupCmd = require('../commands/backup.js');
       backupCmd.execute(interaction, client);
+    }
+
+    else if (customId === 'admin_adicionar_cargo') {
+      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+        return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
+      }
+      await mostrarListaProdutosParaSelecao(interaction, 'cargo');
+    }
+
+    else if (customId === 'admin_adicionar_estoque') {
+      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+        return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
+      }
+      await mostrarListaProdutosParaSelecao(interaction, 'estoque');
     }
 
     // ========== BOTÕES DE CREDENCIAL ==========
