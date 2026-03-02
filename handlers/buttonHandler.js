@@ -5,7 +5,6 @@ async function criarTicket(interaction, produtoId, client) {
   const guild = interaction.guild;
   const user = interaction.user;
 
-  // Gera número do pedido
   const pedidoNumero = await new Promise((resolve, reject) => {
     db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
       if (err) reject(err);
@@ -21,7 +20,6 @@ async function criarTicket(interaction, produtoId, client) {
 
   const pedidoId = `pedido-${pedidoNumero}`;
 
-  // Busca produto
   const produto = await new Promise((resolve, reject) => {
     db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], (err, row) => {
       if (err) reject(err);
@@ -38,7 +36,6 @@ async function criarTicket(interaction, produtoId, client) {
     throw new Error('Bot não tem permissão "Gerenciar Canais".');
   }
 
-  // Cria canal
   const ticketChannel = await guild.channels.create({
     name: pedidoId,
     type: 0,
@@ -50,7 +47,6 @@ async function criarTicket(interaction, produtoId, client) {
     ],
   });
 
-  // Insere pedido no banco
   await new Promise((resolve, reject) => {
     db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, produto_id, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?, ?)`,
       [pedidoId, pedidoNumero, produtoId, user.id, produto.valor, 'aguardando_pagamento'],
@@ -63,7 +59,6 @@ async function criarTicket(interaction, produtoId, client) {
 
   await interaction.reply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
 
-  // Mensagem inicial com botões
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`confirmar_${pedidoId}`)
@@ -151,6 +146,18 @@ module.exports = async (interaction, client) => {
       const channel = interaction.channel;
       await interaction.reply({ content: '🔒 Fechando ticket...' });
       setTimeout(async () => await channel.delete(), 5000);
+
+    } else if (customId.startsWith('copiar_')) {
+      const pedidoId = customId.replace('copiar_', '');
+      db.get(`SELECT qr_code FROM pedidos WHERE pedido_id = ?`, [pedidoId], async (err, row) => {
+        if (err || !row || !row.qr_code) {
+          return interaction.reply({ content: '❌ Chave PIX não encontrada.', ephemeral: true });
+        }
+        await interaction.reply({
+          content: `🔑 **Chave PIX (copia e cola):**\n\`${row.qr_code}\``,
+          ephemeral: true
+        });
+      });
     }
   } catch (error) {
     console.error('❌ Erro no buttonHandler:', error);
