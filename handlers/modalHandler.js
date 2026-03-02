@@ -2,119 +2,176 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const db = require('../database/db');
 
 module.exports = async (interaction, client) => {
-  // Modal para adicionar produto com quantidade
-  if (interaction.customId === 'modal_quantidade') {
-    const produtoId = interaction.fields.getTextInputValue('produto_id');
-    const quantidade = parseInt(interaction.fields.getTextInputValue('quantidade'));
-    const acao = interaction.fields.getTextInputValue('acao'); // 'comprar' ou 'carrinho'
+  try {
+    // Modal de produto (adicionar produto)
+    if (interaction.customId === 'modal_produto') {
+      const nome = interaction.fields.getTextInputValue('nome');
+      const descricao = interaction.fields.getTextInputValue('descricao');
+      const valor = parseFloat(interaction.fields.getTextInputValue('valor'));
+      const link = interaction.fields.getTextInputValue('link');
+      const imagem = interaction.fields.getTextInputValue('imagem');
 
-    // Busca produto
-    db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], async (err, produto) => {
-      if (err || !produto) {
-        return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
+      // Validações básicas
+      if (isNaN(valor) || valor <= 0) {
+        return interaction.reply({ content: '❌ Valor inválido.', ephemeral: true });
+      }
+      if (!imagem.startsWith('http')) {
+        return interaction.reply({ content: '❌ URL da imagem deve começar com http:// ou https://', ephemeral: true });
       }
 
-      if (acao === 'comprar') {
-        // Criar ticket (reutiliza a função criarTicket, mas precisamos passar quantidade? Talvez adaptar)
-        // Como a função criarTicket atual não aceita quantidade, vamos chamar uma versão modificada.
-        // Por simplicidade, podemos chamar a função existente e depois ajustar o valor (mas isso seria inconsistente).
-        // Vamos criar uma nova função para compra direta com quantidade.
-        await criarTicketComQuantidade(interaction, produto, quantidade, client);
-      } else if (acao === 'carrinho') {
-        // Adicionar ao carrinho
-        await adicionarAoCarrinho(interaction, produto, quantidade);
-      }
-    });
-  }
-
-  // Se for o modal de produto (já existente), mantém
-  if (interaction.customId === 'modal_produto') {
-    // ... (código atual de criação de produto)
-  }
-};
-
-async function adicionarAoCarrinho(interaction, produto, quantidade) {
-  const usuarioId = interaction.user.id;
-  db.run(`INSERT INTO carrinhos (usuario_id) VALUES (?) ON CONFLICT(usuario_id) DO NOTHING`, [usuarioId]);
-  db.get(`SELECT id FROM carrinhos WHERE usuario_id = ?`, [usuarioId], (err, carrinho) => {
-    if (err || !carrinho) {
-      return interaction.reply({ content: '❌ Erro ao acessar carrinho.', ephemeral: true });
-    }
-    db.run(`INSERT INTO carrinho_itens (carrinho_id, produto_id, quantidade) VALUES (?, ?, ?)`,
-      [carrinho.id, produto.id, quantidade], function(err2) {
-        if (err2) {
-          return interaction.reply({ content: '❌ Erro ao adicionar item.', ephemeral: true });
-        }
-        interaction.reply({ content: `✅ ${produto.nome} x${quantidade} adicionado ao carrinho.`, ephemeral: true });
-      });
-  });
-}
-
-async function criarTicketComQuantidade(interaction, produto, quantidade, client) {
-  // Adaptar a função criarTicket para considerar a quantidade (talvez criar um pedido com valor total)
-  // Vamos reutilizar a lógica de criarTicket, mas multiplicar o valor.
-  // Para simplificar, podemos criar um pedido com valor = produto.valor * quantidade.
-  // No entanto, o ticket tradicional é para um produto só. Vamos manter assim.
-  // Se precisar de múltiplos produtos, é melhor usar o carrinho.
-  // Vamos apenas chamar a função criarTicket passando o produtoId, mas ignorar quantidade.
-  // Ou podemos modificar a função criarTicket para aceitar quantidade e link do produto? Fica complexo.
-  // Por enquanto, vou manter a função existente, mas avisando que a quantidade será ignorada.
-  // Idealmente, você teria uma função que cria pedido com quantidade e produto.
-  const criarTicket = require('./buttonHandler').criarTicket; // Mas isso causaria dependência circular.
-  // Melhor: mover a função para um utilitário.
-  // Vou criar uma nova função aqui mesmo.
-
-  const guild = interaction.guild;
-  const user = interaction.user;
-  const pedidoNumero = await new Promise((resolve, reject) => {
-    db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
-      if (err) reject(err);
-      else {
-        const next = (parseInt(row?.value || '0') + 1).toString();
-        db.run(`UPDATE config SET value = ? WHERE key = 'pedido_counter'`, [next], (err2) => {
-          if (err2) reject(err2);
-          else resolve(next);
+      // Tenta pegar o canal de vendas configurado, se não existir, usa o canal atual
+      let canalId = await new Promise((resolve) => {
+        db.get(`SELECT value FROM config WHERE key = 'canal_vendas'`, (err, row) => {
+          if (err) {
+            console.error('Erro ao buscar canal_vendas:', err);
+            resolve(null);
+          } else {
+            resolve(row?.value || null);
+          }
         });
+      });
+
+      let canal;
+      if (canalId) {
+        canal = client.channels.cache.get(canalId);
       }
-    });
-  });
-  const pedidoId = `pedido-${pedidoNumero}`;
-  const valorTotal = produto.valor * quantidade;
+      if (!canal) {
+        // Fallback: usar o canal onde a interação ocorreu
+        canal = interaction.channel;
+        console.log('⚠️ Canal de vendas não configurado, usando canal atual.');
+      }
 
-  // Cria canal
-  const ticketChannel = await guild.channels.create({
-    name: pedidoId,
-    type: 0,
-    permissionOverwrites: [
-      { id: guild.id, deny: ['ViewChannel'] },
-      { id: user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
-      { id: process.env.VENDEDOR_ROLE_ID, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
-      { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] }
-    ],
-  });
+      if (!canal) {
+        return interaction.reply({ content: '❌ Não foi possível determinar um canal para publicar o produto.', ephemeral: true });
+      }
 
-  await new Promise((resolve, reject) => {
-    db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, produto_id, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?, ?)`,
-      [pedidoId, pedidoNumero, produto.id, user.id, valorTotal, 'aguardando_pagamento'],
-      function(err) { if (err) reject(err); else resolve(); });
-  });
+      // Insere produto no banco
+      db.run(`INSERT INTO produtos (nome, descricao, valor, link, imagem, canal_id) VALUES (?, ?, ?, ?, ?, ?)`,
+        [nome, descricao, valor, link, imagem, canal.id],
+        function(err) {
+          if (err) {
+            console.error('❌ Erro ao inserir produto:', err);
+            return interaction.reply({ content: '❌ Erro ao salvar produto no banco de dados.', ephemeral: true });
+          }
 
-  await interaction.reply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
+          const produtoId = this.lastID;
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`confirmar_${pedidoId}`)
-      .setLabel('✅ CONFIRMAR VENDA')
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`fechar_${pedidoId}`)
-      .setLabel('❌ FECHAR TICKET')
-      .setStyle(ButtonStyle.Danger)
-  );
+          // Cria embed do produto
+          const embed = new EmbedBuilder()
+            .setColor(0x9B59B6)
+            .setAuthor({ name: '🛍️ NOVO PRODUTO' })
+            .setTitle(nome)
+            .setDescription(`\`\`\`\n${descricao}\n\`\`\``)
+            .setThumbnail(imagem)
+            .addFields(
+              { name: '💰 Preço', value: `R$ ${valor.toFixed(2)}`, inline: true },
+              { name: '🆔 ID', value: produtoId.toString(), inline: true }
+            )
+            .setFooter({ text: 'Clique no botão para comprar' })
+            .setTimestamp();
 
-  const mensagem = `
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`comprar_${produtoId}`)
+              .setLabel('🛒 Comprar agora')
+              .setStyle(ButtonStyle.Success)
+              .setEmoji('🛒')
+          );
+
+          // Envia no canal
+          canal.send({ embeds: [embed], components: [row] })
+            .then(() => {
+              interaction.reply({ content: '✅ Produto publicado com sucesso!', ephemeral: true });
+            })
+            .catch(err => {
+              console.error('❌ Erro ao enviar mensagem no canal:', err);
+              interaction.reply({ content: '❌ Produto salvo, mas erro ao enviar mensagem no canal.', ephemeral: true });
+            });
+        }
+      );
+    }
+
+    // Modal de quantidade (para comprar/adicionar ao carrinho)
+    else if (interaction.customId === 'modal_quantidade') {
+      const quantidade = parseInt(interaction.fields.getTextInputValue('quantidade'));
+      const produtoId = interaction.fields.getTextInputValue('produto_id');
+      const acao = interaction.fields.getTextInputValue('acao');
+
+      if (isNaN(quantidade) || quantidade <= 0) {
+        return interaction.reply({ content: '❌ Quantidade inválida.', ephemeral: true });
+      }
+
+      // Busca produto no banco
+      db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], async (err, produto) => {
+        if (err || !produto) {
+          console.error('Erro ao buscar produto:', err);
+          return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
+        }
+
+        if (acao === 'comprar') {
+          // Função de criar ticket com quantidade (precisa estar definida no buttonHandler ou aqui)
+          // Como a função criarTicketComQuantidade está no buttonHandler, precisamos importá-la ou recriá-la.
+          // Vamos chamar o buttonHandler para não duplicar código? Melhor ter uma função separada.
+          // Para simplificar, vou colocar a lógica aqui mesmo.
+          const guild = interaction.guild;
+          const user = interaction.user;
+          const vendedorRole = process.env.VENDEDOR_ROLE_ID;
+
+          if (!vendedorRole) {
+            return interaction.reply({ content: '❌ VENDEDOR_ROLE_ID não configurado.', ephemeral: true });
+          }
+
+          // Gera número do pedido
+          const pedidoNumero = await new Promise((resolve, reject) => {
+            db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
+              if (err) reject(err);
+              else {
+                const next = (parseInt(row?.value || '0') + 1).toString();
+                db.run(`UPDATE config SET value = ? WHERE key = 'pedido_counter'`, [next], (err2) => {
+                  if (err2) reject(err2);
+                  else resolve(next);
+                });
+              }
+            });
+          });
+          const pedidoId = `pedido-${pedidoNumero}`;
+          const valorTotal = produto.valor * quantidade;
+
+          // Cria canal
+          const ticketChannel = await guild.channels.create({
+            name: pedidoId,
+            type: 0,
+            permissionOverwrites: [
+              { id: guild.id, deny: ['ViewChannel'] },
+              { id: user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
+              { id: vendedorRole, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
+              { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] }
+            ],
+          });
+
+          // Insere pedido
+          await new Promise((resolve, reject) => {
+            db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, produto_id, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?, ?)`,
+              [pedidoId, pedidoNumero, produto.id, user.id, valorTotal, 'aguardando_pagamento'],
+              function(err) { if (err) reject(err); else resolve(); });
+          });
+
+          await interaction.reply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
+
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`confirmar_${pedidoId}`)
+              .setLabel('✅ CONFIRMAR VENDA')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(`fechar_${pedidoId}`)
+              .setLabel('❌ FECHAR TICKET')
+              .setStyle(ButtonStyle.Danger)
+          );
+
+          const mensagem = `
 ━━━━━━━━━━━━━━━━━━━━━━━━
-**🛒 NOVO PEDIDO** • <@&${process.env.VENDEDOR_ROLE_ID}>
+**🛒 NOVO PEDIDO** • <@&${vendedorRole}>
 ━━━━━━━━━━━━━━━━━━━━━━━━
 
 **👤 Cliente:** ${user}
@@ -123,7 +180,35 @@ async function criarTicketComQuantidade(interaction, produto, quantidade, client
 
 📌 Digite \`/email seu@email.com\` para gerar o PIX.
 ━━━━━━━━━━━━━━━━━━━━━━━━
-`;
+          `;
 
-  await ticketChannel.send({ content: mensagem, components: [row] });
-}
+          await ticketChannel.send({ content: mensagem, components: [row] });
+        }
+        else if (acao === 'carrinho') {
+          // Adiciona ao carrinho
+          const usuarioId = interaction.user.id;
+          db.run(`INSERT INTO carrinhos (usuario_id) VALUES (?) ON CONFLICT(usuario_id) DO NOTHING`, [usuarioId]);
+          db.get(`SELECT id FROM carrinhos WHERE usuario_id = ?`, [usuarioId], (err, carrinho) => {
+            if (err || !carrinho) {
+              return interaction.reply({ content: '❌ Erro ao acessar carrinho.', ephemeral: true });
+            }
+            db.run(`INSERT INTO carrinho_itens (carrinho_id, produto_id, quantidade) VALUES (?, ?, ?)`,
+              [carrinho.id, produto.id, quantidade], function(err2) {
+                if (err2) {
+                  return interaction.reply({ content: '❌ Erro ao adicionar item.', ephemeral: true });
+                }
+                interaction.reply({ content: `✅ ${produto.nome} x${quantidade} adicionado ao carrinho.`, ephemeral: true });
+              });
+          });
+        }
+      });
+    }
+  } catch (error) {
+    console.error('❌ Erro no modalHandler:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ Ocorreu um erro inesperado. Tente novamente mais tarde.', ephemeral: true });
+    } else if (interaction.deferred && !interaction.replied) {
+      await interaction.editReply({ content: '❌ Ocorreu um erro inesperado. Tente novamente mais tarde.' });
+    }
+  }
+};
