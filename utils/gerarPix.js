@@ -1,9 +1,18 @@
 const mercadopago = require('mercadopago');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
-
-mercadopago.configure({ access_token: process.env.MERCADO_PAGO_ACCESS_TOKEN });
+const db = require('../database/db'); // importa o banco
 
 module.exports = async function gerarPix(pedido, email) {
+  // Busca a credencial do banco
+  const token = await new Promise((resolve, reject) => {
+    db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
+      if (err || !row || !row.value) reject(new Error('Credencial do Mercado Pago não configurada. Use /credencial.'));
+      else resolve(row.value);
+    });
+  });
+
+  mercadopago.configure({ access_token: token });
+
   const payment_data = {
     transaction_amount: pedido.valor,
     description: `Pedido ${pedido.pedido_id}`,
@@ -17,31 +26,15 @@ module.exports = async function gerarPix(pedido, email) {
   const qr_code = payment.point_of_interaction.transaction_data.qr_code;
   const qr_code_base64 = payment.point_of_interaction.transaction_data.qr_code_base64;
 
-  const db = require('../database/db');
-  
-  // Garantir que o pagamento_id seja salvo como string
-  const pagamentoIdStr = String(payment.id);
-  
   await new Promise((resolve, reject) => {
     db.run(`UPDATE pedidos SET pagamento_id = ?, qr_code = ? WHERE pedido_id = ?`,
-      [pagamentoIdStr, qr_code, pedido.pedido_id],
+      [payment.id, qr_code, pedido.pedido_id],
       function(err) {
         if (err) {
           console.error('❌ Erro ao salvar pagamento_id:', err);
           reject(err);
         } else {
-          console.log('✅ pagamento_id salvo como string:', pagamentoIdStr);
-          
-          // Verificação pós-salvamento
-          db.get(`SELECT pagamento_id FROM pedidos WHERE pedido_id = ?`, [pedido.pedido_id], (err2, row) => {
-            if (err2) {
-              console.error('❌ Erro na verificação:', err2);
-            } else if (row && row.pagamento_id === pagamentoIdStr) {
-              console.log('✅ Verificação: pagamento_id OK.');
-            } else {
-              console.error('❌ Verificação falhou!', row);
-            }
-          });
+          console.log('✅ pagamento_id salvo:', payment.id);
           resolve();
         }
       }
