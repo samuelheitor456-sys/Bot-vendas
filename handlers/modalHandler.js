@@ -55,19 +55,19 @@ module.exports = async (interaction, client) => {
 
           const produtoId = this.lastID;
 
-          // Embed do produto com campos inline para ficarem na horizontal
-          const embed = new EmbedBuilder()
-            .setColor(0x9B59B6) // Roxo
-            .setTitle('🛡️ Compra Segura')
-            .setDescription(`**${nome}**\n${descricao}`)
-            .addFields(
-              { name: '💰 Valor', value: `R$ ${valor.toFixed(2)}`, inline: true },
-              { name: '📦 Estoque', value: 'Ilimitado', inline: true },
-              { name: '📬 Entrega', value: 'Automática', inline: true }
-            )
-            .setImage(imagem)
-            .setFooter({ text: `BOT DE VENDAS PRIME WOLF PACK | Hoje às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` })
-            .setTimestamp();
+// Embed do produto com campos inline forçados
+const embed = new EmbedBuilder()
+  .setColor(0x9B59B6) // Roxo
+  .setTitle('🛡️ Compra Segura')
+  .setDescription(`**${nome}**\n${descricao}`)
+  .addFields(
+    { name: '💰 Valor', value: `R$ ${valor.toFixed(2)}`, inline: true },
+    { name: '📦 Estoque', value: 'Ilimitado', inline: true },
+    { name: '📬 Entrega', value: 'Automática', inline: true }
+  )
+  .setImage(imagem)
+  .setFooter({ text: `BOT DE VENDAS PRIME WOLF PACK | Hoje às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` })
+  .setTimestamp();
 
           // Botões: Adicionar ao carrinho e Comprar agora
           const row = new ActionRowBuilder().addComponents(
