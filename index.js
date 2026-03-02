@@ -12,6 +12,7 @@ const app = express();
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('OK'));
+
 app.post('/webhook', async (req, res) => {
   console.log('📩 Webhook recebido:', JSON.stringify(req.body, null, 2));
   const { body } = req;
@@ -22,7 +23,7 @@ app.post('/webhook', async (req, res) => {
   }
 
   if (body.type === 'payment') {
-    const paymentId = body.data.id;
+    const paymentId = String(body.data.id); // Garantir string
     console.log(`🔍 Payment ID: ${paymentId}`);
 
     try {
@@ -30,7 +31,7 @@ app.post('/webhook', async (req, res) => {
       console.log(`📊 Status: ${payment.body.status}`);
 
       if (payment.body.status === 'approved') {
-        console.log('✅ Pagamento aprovado. Buscando pedido no banco...');
+        console.log('✅ Pagamento aprovado. Buscando pedido...');
 
         db.get(`SELECT * FROM pedidos WHERE pagamento_id = ?`, [paymentId], async (err, pedido) => {
           if (err) {
@@ -39,11 +40,12 @@ app.post('/webhook', async (req, res) => {
           }
           if (!pedido) {
             console.log('❌ Pedido não encontrado para pagamento_id:', paymentId);
+            
             // Lista todos os pedidos para depuração
             db.all(`SELECT pedido_id, pagamento_id FROM pedidos`, (err2, rows) => {
               if (!err2) {
                 console.log('📋 Pedidos no banco:');
-                rows.forEach(r => console.log(`  ${r.pedido_id}: ${r.pagamento_id}`));
+                rows.forEach(r => console.log(`  ${r.pedido_id}: "${r.pagamento_id}"`));
               }
             });
             return res.sendStatus(404);
