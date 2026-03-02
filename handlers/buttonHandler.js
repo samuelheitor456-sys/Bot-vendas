@@ -4,16 +4,22 @@ const db = require('../database/db');
 // ==================== FUNÇÕES AUXILIARES ====================
 
 async function mostrarCatalogo(interaction) {
-  db.all(`SELECT id, nome, valor, imagem FROM produtos ORDER BY id DESC`, (err, rows) => {
+  // Mostra apenas produtos com estoque disponível (>0 ou ilimitado -1)
+  db.all(`SELECT id, nome, valor, imagem, estoque FROM produtos WHERE estoque != 0 ORDER BY id DESC`, (err, rows) => {
     if (err || rows.length === 0) {
       return interaction.reply({ content: '📭 Nenhum produto disponível.', ephemeral: true });
     }
 
-    const options = rows.map(p => ({
-      label: p.nome,
-      description: `R$ ${p.valor.toFixed(2)}`,
-      value: p.id.toString()
-    }));
+    const options = rows.map(p => {
+      let desc = `R$ ${p.valor.toFixed(2)}`;
+      if (p.estoque === -1) desc += ' • Ilimitado';
+      else if (p.estoque > 0) desc += ` • ${p.estoque} und`;
+      return {
+        label: p.nome,
+        description: desc,
+        value: p.id.toString()
+      };
+    });
 
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId('selecionar_produto_catalogo')
@@ -90,9 +96,9 @@ async function finalizarCompra(interaction, client) {
     return interaction.editReply({ content: '❌ VENDEDOR_ROLE_ID não configurado.', ephemeral: true });
   }
 
-  // Buscar itens do carrinho
+  // Buscar itens do carrinho com informações de estoque
   const itens = await new Promise((resolve, reject) => {
-    db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.link, p.descricao
+    db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.link, p.descricao, p.estoque
             FROM carrinho_itens ci
             JOIN carrinhos c ON ci.carrinho_id = c.id
             JOIN produtos p ON ci.produto_id = p.id
@@ -104,6 +110,16 @@ async function finalizarCompra(interaction, client) {
 
   if (itens.length === 0) {
     return interaction.editReply({ content: '❌ Carrinho vazio.', ephemeral: true });
+  }
+
+  // Verificar estoque para cada item
+  for (const item of itens) {
+    if (item.estoque !== -1 && item.estoque < item.quantidade) {
+      return interaction.editReply({ 
+        content: `❌ Estoque insuficiente para **${item.nome}**. Disponível: ${item.estoque} unidades.`, 
+        ephemeral: true 
+      });
+    }
   }
 
   const total = itens.reduce((acc, i) => acc + i.valor * i.quantidade, 0);
@@ -142,12 +158,22 @@ async function finalizarCompra(interaction, client) {
       function(err) { if (err) reject(err); else resolve(); });
   });
 
-  // Inserir itens do pedido
+  // Inserir itens do pedido e dar baixa no estoque
   for (const item of itens) {
     await new Promise((resolve, reject) => {
       db.run(`INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, valor_unitario) VALUES (?, ?, ?, ?)`,
         [pedidoId, item.produto_id, item.quantidade, item.valor], function(err) { if (err) reject(err); else resolve(); });
     });
+
+    // Dar baixa no estoque (apenas se não for ilimitado)
+    if (item.estoque !== -1) {
+      const novoEstoque = item.estoque - item.quantidade;
+      await new Promise((resolve, reject) => {
+        db.run(`UPDATE produtos SET estoque = ? WHERE id = ?`, [novoEstoque, item.produto_id], function(err) {
+          if (err) reject(err); else resolve();
+        });
+      });
+    }
   }
 
   // Limpar carrinho
@@ -160,7 +186,7 @@ async function finalizarCompra(interaction, client) {
 
   // ==================== MENSAGEM PROFISSIONAL DO TICKET ====================
   const embed = new EmbedBuilder()
-    .setColor(0x9B59B6) // Roxo elegante
+    .setColor(0x9B59B6)
     .setTitle(`🛒 **COMPRA DO PEDIDO ${pedidoNumero}**`)
     .setDescription(`
 ━━━━━━━━━━━━━━━━━━━━━━━━
@@ -193,7 +219,7 @@ Digite o comando abaixo neste canal:
     `)
     .setFooter({ 
       text: 'BOT DE VENDAS PRIME WOLF PACK | Confiança e segurança em cada compra', 
-      iconURL: 'https://cdn.discordapp.com/emojis/1234567890.png' // Substitua por um ícone se desejar
+      iconURL: 'https://cdn.discordapp.com/emojis/1234567890.png' 
     })
     .setTimestamp();
 
@@ -319,11 +345,14 @@ module.exports = async (interaction, client) => {
       if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
-      db.all(`SELECT id, nome, valor FROM produtos ORDER BY id`, (err, rows) => {
+      db.all(`SELECT id, nome, valor, estoque FROM produtos ORDER BY id`, (err, rows) => {
         if (err || rows.length === 0) {
           return interaction.reply({ content: '📭 Nenhum produto cadastrado.', ephemeral: true });
         }
-        let desc = rows.map(p => `**${p.id}.** ${p.nome} - R$ ${p.valor.toFixed(2)}`).join('\n');
+        let desc = rows.map(p => {
+          let est = p.estoque === -1 ? 'Ilimitado' : p.estoque;
+          return `**${p.id}.** ${p.nome} - R$ ${p.valor.toFixed(2)} (Estoque: ${est})`;
+        }).join('\n');
         const embed = new EmbedBuilder()
           .setColor(0x00FF00)
           .setTitle('📋 Produtos cadastrados')
@@ -442,13 +471,14 @@ module.exports = async (interaction, client) => {
           return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
         }
 
+        const estoqueDisplay = produto.estoque === -1 ? 'Ilimitado' : produto.estoque + ' unidades';
         const embed = new EmbedBuilder()
           .setColor(0x9B59B6)
           .setTitle('🛡️ Compra Segura')
           .setDescription(`**${produto.nome}**\n${produto.descricao}`)
           .addFields(
             { name: 'Valor', value: `R$ ${produto.valor.toFixed(2)}`, inline: true },
-            { name: 'Estoque', value: 'Ilimitado', inline: true },
+            { name: 'Estoque', value: estoqueDisplay, inline: true },
             { name: 'Entrega', value: 'Automática', inline: true }
           )
           .setImage(produto.imagem)
