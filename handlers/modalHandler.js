@@ -18,8 +18,14 @@ module.exports = async (interaction, client) => {
       });
     }
 
-    // ========== MODAL DE PRODUTO (SEM CAMPO ESTOQUE) ==========
-    else if (interaction.customId === 'modal_produto') {
+    // ========== MODAL DE PRODUTO (COM CANAL VIA CUSTOM ID) ==========
+    else if (interaction.customId.startsWith('modal_produto_canal_')) {
+      const canalId = interaction.customId.replace('modal_produto_canal_', '');
+      const canal = client.channels.cache.get(canalId);
+      if (!canal) {
+        return interaction.reply({ content: '❌ Canal inválido.', ephemeral: true });
+      }
+
       const nome = interaction.fields.getTextInputValue('nome');
       const descricao = interaction.fields.getTextInputValue('descricao');
       const valor = parseFloat(interaction.fields.getTextInputValue('valor'));
@@ -33,21 +39,6 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ URL da imagem deve começar com http:// ou https://', ephemeral: true });
       }
 
-      let canalId = await new Promise((resolve) => {
-        db.get(`SELECT value FROM config WHERE key = 'canal_vendas'`, (err, row) => {
-          resolve(row?.value || null);
-        });
-      });
-
-      let canal;
-      if (canalId) canal = client.channels.cache.get(canalId);
-      if (!canal) canal = interaction.channel;
-
-      if (!canal) {
-        return interaction.reply({ content: '❌ Não foi possível determinar um canal para publicar o produto.', ephemeral: true });
-      }
-
-      // Insere produto com estoque padrão -1 (ilimitado)
       db.run(`INSERT INTO produtos (nome, descricao, valor, link, imagem, canal_id, estoque) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [nome, descricao, valor, link, imagem, canal.id, -1],
         function(err) {
@@ -110,13 +101,11 @@ module.exports = async (interaction, client) => {
           return interaction.reply({ content: '❌ Produto não encontrado.', ephemeral: true });
         }
 
-        // Verifica estoque
         if (produto.estoque !== -1 && produto.estoque < quantidade) {
           return interaction.reply({ content: `❌ Estoque insuficiente. Disponível: ${produto.estoque} unidades.`, ephemeral: true });
         }
 
         if (acao === 'comprar') {
-          // Lógica de compra direta com quantidade
           const guild = interaction.guild;
           const user = interaction.user;
           const vendedorRole = process.env.VENDEDOR_ROLE_ID;
@@ -157,13 +146,11 @@ module.exports = async (interaction, client) => {
               function(err) { if (err) reject(err); else resolve(); });
           });
 
-          // Dar baixa no estoque
           if (produto.estoque !== -1) {
             const novoEstoque = produto.estoque - quantidade;
             db.run(`UPDATE produtos SET estoque = ? WHERE id = ?`, [novoEstoque, produto.id]);
           }
 
-          // ==================== MENSAGEM PROFISSIONAL DO TICKET (COMPRA DIRETA) ====================
           const embed = new EmbedBuilder()
             .setColor(0x9B59B6)
             .setTitle(`🛒 **COMPRA DO PEDIDO ${pedidoNumero}**`)
@@ -234,6 +221,37 @@ Digite o comando abaixo neste canal:
               });
           });
         }
+      });
+    }
+
+    // ========== MODAL DE CARGO ==========
+    else if (interaction.customId.startsWith('modal_cargo_')) {
+      const produtoId = interaction.customId.replace('modal_cargo_', '');
+      const cargoId = interaction.fields.getTextInputValue('cargo_id');
+      db.run(`UPDATE produtos SET cargo_id = ? WHERE id = ?`, [cargoId, produtoId], function(err) {
+        if (err) {
+          console.error(err);
+          return interaction.reply({ content: '❌ Erro ao vincular cargo.', ephemeral: true });
+        }
+        interaction.reply({ content: `✅ Cargo vinculado ao produto ID ${produtoId}.`, ephemeral: true });
+        setTimeout(() => interaction.deleteReply(), 2000);
+      });
+    }
+
+    // ========== MODAL DE ESTOQUE ==========
+    else if (interaction.customId.startsWith('modal_estoque_')) {
+      const produtoId = interaction.customId.replace('modal_estoque_', '');
+      const estoque = parseInt(interaction.fields.getTextInputValue('estoque'));
+      if (isNaN(estoque) || estoque < -1) {
+        return interaction.reply({ content: '❌ Valor inválido. Use -1 para ilimitado ou um número não negativo.', ephemeral: true });
+      }
+      db.run(`UPDATE produtos SET estoque = ? WHERE id = ?`, [estoque, produtoId], function(err) {
+        if (err) {
+          console.error(err);
+          return interaction.reply({ content: '❌ Erro ao atualizar estoque.', ephemeral: true });
+        }
+        interaction.reply({ content: `✅ Estoque do produto ID ${produtoId} atualizado para ${estoque === -1 ? 'ilimitado' : estoque}.`, ephemeral: true });
+        setTimeout(() => interaction.deleteReply(), 2000);
       });
     }
   } catch (error) {
