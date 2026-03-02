@@ -90,8 +90,9 @@ async function finalizarCompra(interaction, client) {
     return interaction.editReply({ content: '❌ VENDEDOR_ROLE_ID não configurado.', ephemeral: true });
   }
 
+  // Buscar itens do carrinho
   const itens = await new Promise((resolve, reject) => {
-    db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.link 
+    db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.link, p.descricao
             FROM carrinho_itens ci
             JOIN carrinhos c ON ci.carrinho_id = c.id
             JOIN produtos p ON ci.produto_id = p.id
@@ -107,6 +108,7 @@ async function finalizarCompra(interaction, client) {
 
   const total = itens.reduce((acc, i) => acc + i.valor * i.quantidade, 0);
 
+  // Gerar número do pedido
   const pedidoNumero = await new Promise((resolve, reject) => {
     db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
       if (err) reject(err);
@@ -121,6 +123,7 @@ async function finalizarCompra(interaction, client) {
   });
   const pedidoId = `pedido-${pedidoNumero}`;
 
+  // Criar canal de ticket
   const ticketChannel = await guild.channels.create({
     name: pedidoId,
     type: 0,
@@ -132,12 +135,14 @@ async function finalizarCompra(interaction, client) {
     ],
   });
 
+  // Inserir pedido principal
   await new Promise((resolve, reject) => {
     db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?)`,
       [pedidoId, pedidoNumero, user.id, total, 'aguardando_pagamento'],
       function(err) { if (err) reject(err); else resolve(); });
   });
 
+  // Inserir itens do pedido
   for (const item of itens) {
     await new Promise((resolve, reject) => {
       db.run(`INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, valor_unitario) VALUES (?, ?, ?, ?)`,
@@ -145,6 +150,7 @@ async function finalizarCompra(interaction, client) {
     });
   }
 
+  // Limpar carrinho
   await new Promise((resolve, reject) => {
     db.run(`DELETE FROM carrinho_itens WHERE carrinho_id = (SELECT id FROM carrinhos WHERE usuario_id = ?)`, [usuarioId], (err) => {
       if (err) reject(err);
@@ -152,34 +158,59 @@ async function finalizarCompra(interaction, client) {
     });
   });
 
+  // ==================== MENSAGEM PROFISSIONAL DO TICKET ====================
+  const embed = new EmbedBuilder()
+    .setColor(0x9B59B6) // Roxo elegante
+    .setTitle(`🛒 **COMPRA DO PEDIDO ${pedidoNumero}**`)
+    .setDescription(`
+━━━━━━━━━━━━━━━━━━━━━━━━
+**👤 RESPONSÁVEL:** <@&${vendedorRole}>
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+**📦 PRODUTO(S):** ${itens.map(i => i.nome).join(', ')}
+
+**💰 VALOR TOTAL:** R$ ${total.toFixed(2)}
+
+**👤 CLIENTE:** ${user}
+
+**📝 DESCRIÇÃO:** ${itens.map(i => i.descricao).join(' ')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+**💳 PAGAMENTO VIA PIX**
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔹 **Como gerar o Pix?**
+Digite o comando abaixo neste canal:
+
+\`\`\`
+/email seu@email.com
+\`\`\`
+
+✅ **Pagamento 100% seguro processado pelo Mercado Pago**
+⏱️ Após a confirmação, o produto será entregue automaticamente.
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+    `)
+    .setFooter({ 
+      text: 'BOT DE VENDAS PRIME WOLF PACK | Confiança e segurança em cada compra', 
+      iconURL: 'https://cdn.discordapp.com/emojis/1234567890.png' // Substitua por um ícone se desejar
+    })
+    .setTimestamp();
+
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`confirmar_${pedidoId}`)
       .setLabel('✅ CONFIRMAR VENDA')
-      .setStyle(ButtonStyle.Success),
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('✅'),
     new ButtonBuilder()
       .setCustomId(`fechar_${pedidoId}`)
       .setLabel('❌ FECHAR TICKET')
       .setStyle(ButtonStyle.Danger)
+      .setEmoji('❌')
   );
 
-  let descItens = itens.map(i => `**${i.nome}** x${i.quantidade} - R$ ${(i.valor * i.quantidade).toFixed(2)}`).join('\n');
-  const mensagem = `
-━━━━━━━━━━━━━━━━━━━━━━━━
-**🛒 NOVO PEDIDO (CARRINHO)** • <@&${vendedorRole}>
-━━━━━━━━━━━━━━━━━━━━━━━━
-
-**👤 Cliente:** ${user}
-**📦 Itens:**
-${descItens}
-
-**💰 Valor total:** **R$ ${total.toFixed(2)}**
-
-📌 Digite \`/email seu@email.com\` para gerar o PIX.
-━━━━━━━━━━━━━━━━━━━━━━━━
-  `;
-
-  await ticketChannel.send({ content: mensagem, components: [row] });
+  await ticketChannel.send({ embeds: [embed], components: [row] });
   await interaction.editReply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
 }
 
@@ -241,6 +272,7 @@ module.exports = async (interaction, client) => {
   const customId = interaction.customId;
 
   try {
+    // ========== BOTÕES DO PAINEL ADMIN ==========
     if (customId === 'admin_definir_canal') {
       if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
@@ -309,6 +341,7 @@ module.exports = async (interaction, client) => {
       backupCmd.execute(interaction, client);
     }
 
+    // ========== BOTÕES DE CREDENCIAL ==========
     else if (customId === 'cadastrar_credencial') {
       if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
@@ -377,6 +410,7 @@ module.exports = async (interaction, client) => {
       });
     }
 
+    // ========== BOTÕES DA CENTRAL DE COMANDOS ==========
     else if (customId === 'ver_catalogo') {
       await mostrarCatalogo(interaction);
     }
@@ -400,6 +434,7 @@ module.exports = async (interaction, client) => {
       interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
+    // ========== SELEÇÃO DE PRODUTO NO CATÁLOGO ==========
     else if (customId === 'selecionar_produto_catalogo') {
       const produtoId = interaction.values[0];
       db.get(`SELECT * FROM produtos WHERE id = ?`, [produtoId], async (err, produto) => {
@@ -437,6 +472,7 @@ module.exports = async (interaction, client) => {
       });
     }
 
+    // ========== BOTÕES DE AÇÃO SOBRE PRODUTO ==========
     else if (customId.startsWith('comprar_agora_')) {
       const produtoId = customId.replace('comprar_agora_', '');
       await abrirModalQuantidade(interaction, produtoId, 'comprar');
@@ -446,6 +482,7 @@ module.exports = async (interaction, client) => {
       await abrirModalQuantidade(interaction, produtoId, 'carrinho');
     }
 
+    // ========== BOTÕES DO CARRINHO ==========
     else if (customId.startsWith('remover_item_')) {
       const itemId = customId.replace('remover_item_', '');
       db.run(`DELETE FROM carrinho_itens WHERE id = ?`, [itemId], function(err) {
@@ -461,6 +498,7 @@ module.exports = async (interaction, client) => {
       await finalizarCompra(interaction, client);
     }
 
+    // ========== BOTÕES DE TICKET ==========
     else if (customId.startsWith('confirmar_')) {
       if (!interaction.member.roles.cache.has(process.env.VENDEDOR_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas vendedores.', ephemeral: true });
@@ -509,6 +547,7 @@ module.exports = async (interaction, client) => {
       });
     }
 
+    // ========== SELEÇÃO DE CANAL (definir canal de vendas) ==========
     else if (customId === 'selecionar_canal') {
       const canalId = interaction.values[0];
       db.run(`INSERT OR REPLACE INTO config (key, value) VALUES ('canal_vendas', ?)`, [canalId], (err) => {
