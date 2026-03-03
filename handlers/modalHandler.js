@@ -50,33 +50,30 @@ module.exports = async (interaction, client) => {
           const produtoId = this.lastID;
 
 const embed = new EmbedBuilder()
-  .setColor("#33FF33")
-  .setTitle("🟢 COMPRA SEGURA")
-  .setDescription(`**${nome}**\n${descricao}`)
-  .addFields(
+    .setColor("#33FF33")
+    .setTitle("🟢 COMPRA SEGURA")
+    .setDescription("__**${nome}**__\n${descricao}")
+    .addFields(
     {
-      name: "Valor",
-      value: `R$ ${valor.toFixed(2)}`,
-      inline: true
+    name: "**valor**",
+    valeu: "__R$ ${valor.toFixed(2)}__",
+    inline: true
     },
     {
-      name: "Estoque",
-      value: "Limitado",
-      inline: true
+    name: "__**Estoque**__",
+    valeu: "Limitado",
+    inline: true
     },
-    {
-      name: "Entrega",
-      value: "Automática",
-      inline: true
-    }
   )
   .setImage(imagem)
-  .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
-  .setFooter({
-    text: "Bot Vendas Payzex",
-    iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
-  })
-  .setTimestamp();
+  
+  .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png?ex=69a87f88&is=69a72e08&hm=5a2319b4e67fe88f901e0cf805c0aa64f69820ebf4fe5a93d276c92826841f1d&")
+  
+  text: "Bot Vendas Payzex, entrega automática",
+    iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png?ex=69a87f88&is=69a72e08&hm=5a2319b4e67fe88f901e0cf805c0aa64f69820ebf4fe5a93d276c92826841f1d&",
+    
+})
+ .setTimestamp();
 
 const row = new ActionRowBuilder().addComponents(
   new ButtonBuilder()
