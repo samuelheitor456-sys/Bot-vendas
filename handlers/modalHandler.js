@@ -50,18 +50,32 @@ module.exports = async (interaction, client) => {
           const produtoId = this.lastID;
 
 const embed = new EmbedBuilder()
-  .setColor('#0F1F17') // verde quase preto
-  .setTitle(nome)
-  .setDescription(
-`R$ ${valor.toFixed(2)}
-
-${descricao}
-
-Entrega automática • Acesso imediato • Suporte 24 horas`
+  .setColor('#00B050') // verde parecido com o da imagem
+  .setTitle('Compra Segura')
+  .setDescription(`**${nome}**\n${descricao}`)
+  .addFields(
+    {
+      name: 'Valor',
+      value: `R$ ${valor.toFixed(2)}`,
+      inline: true
+    },
+    {
+      name: 'Estoque',
+      value: 'Ilimitado',
+      inline: true
+    },
+    {
+      name: 'Entrega',
+      value: 'Automática',
+      inline: true
+    }
   )
   .setImage(imagem)
   .setFooter({
-    text: 'PAYZEX'
+    text: `PAYZEX • Hoje às ${new Date().toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`
   })
   .setTimestamp();
 
