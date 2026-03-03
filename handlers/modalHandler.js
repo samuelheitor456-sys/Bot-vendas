@@ -67,7 +67,7 @@ const embed = new EmbedBuilder()
   .setImage(imagem)
 
   .setFooter({
-    text: 'ENTREGA AUTOMÁTICA, SUPORTE 24H, ESTOQUE LIMITADO, PAYZEX.COM'
+    text: 'Entrega automática, estoque limitado, PAYZEX.COM'
   })
   .setTimestamp();
 
