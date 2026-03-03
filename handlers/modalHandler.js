@@ -50,38 +50,31 @@ module.exports = async (interaction, client) => {
           const produtoId = this.lastID;
 
 const embed = new EmbedBuilder()
-  .setColor('#00FF66')
-  .setTitle('🟢 Compra Segura')
+  .setColor('#0F1F17') // verde quase preto
+  .setTitle(nome)
   .setDescription(
-`**${nome}**
+`R$ ${valor.toFixed(2)}
+
 ${descricao}
 
-\`\`\`
-┌────────────┬────────────┬────────────┐
-│   VALOR    │  ESTOQUE   │  ENTREGA   │
-├────────────┼────────────┼────────────┤
-│ R$ ${valor.toFixed(2).padEnd(8)} │ Disponível │ Automática │
-└────────────┴────────────┴────────────┘
-\`\`\`
-`
+Entrega automática • Acesso imediato • Suporte 24 horas`
   )
   .setImage(imagem)
   .setFooter({
-    text: 'PAYZEX • Sistema Profissional de Entrega Automática'
+    text: 'PAYZEX'
   })
   .setTimestamp();
 
 const row = new ActionRowBuilder().addComponents(
   new ButtonBuilder()
-    .setCustomId(`add_carrinho_${produtoId}`)
-    .setLabel('Adicionar ao carrinho')
-    .setStyle(ButtonStyle.Success)
-    .setEmoji('🛒'),
+    .setCustomId(`comprar_agora_${produtoId}`)
+    .setLabel('Comprar')
+    .setStyle(ButtonStyle.Success),
 
   new ButtonBuilder()
-    .setCustomId(`comprar_agora_${produtoId}`)
-    .setLabel('Comprar agora')
-    .setStyle(ButtonStyle.Primary)
+    .setCustomId(`add_carrinho_${produtoId}`)
+    .setLabel('Adicionar ao Carrinho')
+    .setStyle(ButtonStyle.Secondary)
 );
 
 
