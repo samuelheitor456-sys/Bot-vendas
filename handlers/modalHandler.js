@@ -73,6 +73,16 @@ const embed = new EmbedBuilder()
       name: "Suporte",
       value: "24 Horas",
       inline: true
+    },
+    {
+      name: "Pagamento",
+      value: "via pix",
+      inline: true
+    },
+    {
+      name: "By",
+      value: "Payzex",
+      inline: true
     }
   )
   .setImage(imagem)
