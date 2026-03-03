@@ -50,29 +50,83 @@ module.exports = async (interaction, client) => {
           const produtoId = this.lastID;
 
           const embed = new EmbedBuilder()
-            .setColor(0x9B59B6)
-            .setTitle('🛡️ Compra Segura')
-            .setDescription(`**${nome}**\n${descricao}`)
-            .addFields({
-              name: '💳 Informações',
-              value: `💰 R$ ${valor.toFixed(2)}  |  📦 Ilimitado  |  📬 Automática`
-            })
-            .setImage(imagem)
-            .setFooter({ text: `BOT DE VENDAS PRIME WOLF PACK | Hoje às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` })
-            .setTimestamp();
+  .setColor('#00C853') // Verde profissional mais elegante
+  .setTitle('🟢 PAYZEX • Produto Premium')
+  .setDescription(
+`# ${nome}
 
-          const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`add_carrinho_${produtoId}`)
-              .setLabel('Adicionar ao carrinho')
-              .setStyle(ButtonStyle.Primary)
-              .setEmoji('➕'),
-            new ButtonBuilder()
-              .setCustomId(`comprar_agora_${produtoId}`)
-              .setLabel('Comprar agora')
-              .setStyle(ButtonStyle.Success)
-              .setEmoji('🛒')
-          );
+${descricao}
+
+━━━━━━━━━━━━━━━━━━━━━━
+💎 **Sistema Oficial Payzex**
+Entrega automática • Compra protegida
+━━━━━━━━━━━━━━━━━━━━━━`
+  )
+  .addFields(
+    {
+      name: '💰 Investimento',
+      value: `\`\`\`R$ ${valor.toFixed(2)}\`\`\``,
+      inline: false
+    },
+    {
+      name: '📦 Informações do Produto',
+      value: 
+`• Estoque: Disponível  
+• Entrega: Instantânea  
+• Acesso: Vitalício`,
+      inline: false
+    },
+    {
+      name: '⭐ Avaliações Verificadas',
+      value: 
+`★★★★★ 4.9/5  
++2.000 compras realizadas com sucesso`,
+      inline: false
+    },
+    {
+      name: '🎁 Benefícios Inclusos',
+      value: 
+`✔ Atualizações gratuitas  
+✔ Garantia contra falhas  
+✔ Segurança avançada  
+✔ Entrega automática`,
+      inline: false
+    },
+    {
+      name: '🛡️ Segurança Payzex',
+      value:
+`🔒 Pagamento protegido  
+📩 Produto enviado automaticamente  
+💬 Suporte ativo 24h`,
+      inline: false
+    }
+  )
+  .setImage(imagem)
+  .setThumbnail('https://i.imgur.com/seuLogoVerde.png') // coloque sua logo verde aqui
+  .setFooter({
+    text: 'PAYZEX • Plataforma Profissional de Vendas'
+  })
+  .setTimestamp();
+
+const row = new ActionRowBuilder().addComponents(
+  new ButtonBuilder()
+    .setCustomId(`comprar_agora_${produtoId}`)
+    .setLabel('Comprar Agora')
+    .setStyle(ButtonStyle.Success)
+    .setEmoji('💚'),
+
+  new ButtonBuilder()
+    .setCustomId(`add_carrinho_${produtoId}`)
+    .setLabel('Adicionar ao Carrinho')
+    .setStyle(ButtonStyle.Secondary)
+    .setEmoji('🛒'),
+
+  new ButtonBuilder()
+    .setLabel('Suporte 24h')
+    .setStyle(ButtonStyle.Link)
+    .setURL('https://discord.gg/seu-link')
+    .setEmoji('📞')
+);
 
           canal.send({ embeds: [embed], components: [row] })
             .then(() => {
