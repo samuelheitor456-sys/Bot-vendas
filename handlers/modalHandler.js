@@ -51,33 +51,26 @@ module.exports = async (interaction, client) => {
 
 const embed = new EmbedBuilder()
   .setColor('#00FF66')
-  .setTitle('Compra Segura')
+  .setTitle('🟢 Compra Segura')
   .setDescription(
 `**${nome}**
-${descricao}`
-  )
-  .addFields(
-    {
-      name: 'Valor',
-      value: `R$ ${valor.toFixed(2)}`,
-      inline: true
-    },
-    {
-      name: 'Estoque',
-      value: 'Disponível',
-      inline: true
-    },
-    {
-      name: 'Entrega',
-      value: 'Automática',
-      inline: true
-    }
+${descricao}
+
+\`\`\`
+┌────────────┬────────────┬────────────┐
+│   VALOR    │  ESTOQUE   │  ENTREGA   │
+├────────────┼────────────┼────────────┤
+│ R$ ${valor.toFixed(2).padEnd(8)} │ Disponível │ Automática │
+└────────────┴────────────┴────────────┘
+\`\`\`
+`
   )
   .setImage(imagem)
   .setFooter({
-    text: 'PAYZEX • Sistema Automático'
+    text: 'PAYZEX • Sistema Profissional de Entrega Automática'
   })
   .setTimestamp();
+
 const row = new ActionRowBuilder().addComponents(
   new ButtonBuilder()
     .setCustomId(`add_carrinho_${produtoId}`)
