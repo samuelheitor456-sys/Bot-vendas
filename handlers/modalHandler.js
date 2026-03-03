@@ -66,12 +66,12 @@ const embed = new EmbedBuilder()
     },
     {
       name: "Entrega",
-      valeu: "Automática",
+      value: "Automática",
       inline: true
     },
     {
       name: "Suporte",
-      valeu: "24 Horas",
+      value: "24 Horas",
       inline: true
     }
   )
