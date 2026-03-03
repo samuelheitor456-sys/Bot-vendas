@@ -49,84 +49,48 @@ module.exports = async (interaction, client) => {
 
           const produtoId = this.lastID;
 
-          const embed = new EmbedBuilder()
-  .setColor('#00C853') // Verde profissional mais elegante
-  .setTitle('🟢 PAYZEX • Produto Premium')
+const embed = new EmbedBuilder()
+  .setColor('#00FF66')
+  .setTitle('Compra Segura')
   .setDescription(
-`# ${nome}
-
-${descricao}
-
-━━━━━━━━━━━━━━━━━━━━━━
-💎 **Sistema Oficial Payzex**
-Entrega automática • Compra protegida
-━━━━━━━━━━━━━━━━━━━━━━`
+`**${nome}**
+${descricao}`
   )
   .addFields(
     {
-      name: '💰 Investimento',
-      value: `\`\`\`R$ ${valor.toFixed(2)}\`\`\``,
-      inline: false
+      name: 'Valor',
+      value: `R$ ${valor.toFixed(2)}`,
+      inline: true
     },
     {
-      name: '📦 Informações do Produto',
-      value: 
-`• Estoque: Disponível  
-• Entrega: Instantânea  
-• Acesso: Vitalício`,
-      inline: false
+      name: 'Estoque',
+      value: 'Disponível',
+      inline: true
     },
     {
-      name: '⭐ Avaliações Verificadas',
-      value: 
-`★★★★★ 4.9/5  
-+2.000 compras realizadas com sucesso`,
-      inline: false
-    },
-    {
-      name: '🎁 Benefícios Inclusos',
-      value: 
-`✔ Atualizações gratuitas  
-✔ Garantia contra falhas  
-✔ Segurança avançada  
-✔ Entrega automática`,
-      inline: false
-    },
-    {
-      name: '🛡️ Segurança Payzex',
-      value:
-`🔒 Pagamento protegido  
-📩 Produto enviado automaticamente  
-💬 Suporte ativo 24h`,
-      inline: false
+      name: 'Entrega',
+      value: 'Automática',
+      inline: true
     }
   )
   .setImage(imagem)
-  .setThumbnail('https://i.imgur.com/seuLogoVerde.png') // coloque sua logo verde aqui
   .setFooter({
-    text: 'PAYZEX • Plataforma Profissional de Vendas'
+    text: 'PAYZEX • Sistema Automático'
   })
   .setTimestamp();
-
 const row = new ActionRowBuilder().addComponents(
   new ButtonBuilder()
-    .setCustomId(`comprar_agora_${produtoId}`)
-    .setLabel('Comprar Agora')
-    .setStyle(ButtonStyle.Success)
-    .setEmoji('💚'),
-
-  new ButtonBuilder()
     .setCustomId(`add_carrinho_${produtoId}`)
-    .setLabel('Adicionar ao Carrinho')
-    .setStyle(ButtonStyle.Secondary)
+    .setLabel('Adicionar ao carrinho')
+    .setStyle(ButtonStyle.Success)
     .setEmoji('🛒'),
 
   new ButtonBuilder()
-    .setLabel('Suporte 24h')
-    .setStyle(ButtonStyle.Link)
-    .setURL('https://discord.gg/seu-link')
-    .setEmoji('📞')
+    .setCustomId(`comprar_agora_${produtoId}`)
+    .setLabel('Comprar agora')
+    .setStyle(ButtonStyle.Primary)
 );
+
 
           canal.send({ embeds: [embed], components: [row] })
             .then(() => {
