@@ -50,32 +50,24 @@ module.exports = async (interaction, client) => {
           const produtoId = this.lastID;
 
 const embed = new EmbedBuilder()
-  .setColor('#00B050') // verde parecido com o da imagem
-  .setTitle('Compra Segura')
+  .setColor('#00B050') // verde lateral
+  .setTitle('🟢 Compra Segura')
   .setDescription(`**${nome}**\n${descricao}`)
+  
+  // Valor antes da imagem
   .addFields(
     {
       name: 'Valor',
       value: `R$ ${valor.toFixed(2)}`,
-      inline: true
-    },
-    {
-      name: 'Estoque',
-      value: 'Ilimitado',
-      inline: true
-    },
-    {
-      name: 'Entrega',
-      value: 'Automática',
-      inline: true
+      inline: false
     }
   )
+
+  // Imagem grande
   .setImage(imagem)
+
   .setFooter({
-    text: `PAYZEX • Hoje às ${new Date().toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`
+    text: 'ENTREGA AUTOMÁTICA, SUPORTE 24H, ESTOQUE LIMITADO, PAYZEX.COM'
   })
   .setTimestamp();
 
