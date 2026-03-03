@@ -51,7 +51,7 @@ module.exports = async (interaction, client) => {
 
 const embed = new EmbedBuilder()
   .setColor("#33FF33")
-  .setTitle("🟢 COMPRA SEGURA")
+  .setTitle("__**🟢 COMPRA SEGURA**__")
   .setDescription(`**${nome}**\n${descricao}`)
   .addFields(
     {
@@ -63,12 +63,23 @@ const embed = new EmbedBuilder()
       name: "Estoque",
       value: "Limitado",
       inline: true
+    },
+    {
+      name: "Entrega",
+      valeu: "Automática",
+      inline: true
+    },
+    {
+      name: "Suporte",
+      valeu: "24 Horas",
+      inline: true
     }
   )
   .setImage(imagem)
   .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
   .setFooter({
-    text: "Bot Vendas Payzex, entrega automática",
+    text: "Bot Vendas Payzex",
+    
     iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
   })
   .setTimestamp();
