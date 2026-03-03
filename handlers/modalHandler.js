@@ -50,24 +50,31 @@ module.exports = async (interaction, client) => {
           const produtoId = this.lastID;
 
 const embed = new EmbedBuilder()
-  .setColor('#00B050') // verde lateral
-  .setTitle('🟢 Compra Segura')
+  .setColor("#33FF33")
+  .setTitle("🟢 COMPRA SEGURA")
   .setDescription(`**${nome}**\n${descricao}`)
-  
-  // Valor antes da imagem
   .addFields(
     {
-      name: 'Valor',
+      name: "Valor",
       value: `R$ ${valor.toFixed(2)}`,
-      inline: false
+      inline: true
+    },
+    {
+      name: "Estoque",
+      value: "Limitado",
+      inline: true
+    },
+    {
+      name: "Entrega",
+      value: "Automática",
+      inline: true
     }
   )
-
-  // Imagem grande
   .setImage(imagem)
-
+  .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
   .setFooter({
-    text: 'Entrega automática, estoque limitado, PAYZEX.COM'
+    text: "Bot Vendas Payzex",
+    iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
   })
   .setTimestamp();
 
