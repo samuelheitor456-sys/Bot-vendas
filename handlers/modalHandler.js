@@ -56,12 +56,12 @@ const embed = new EmbedBuilder()
     .addFields(
     {
     name: "**valor**",
-    valeu: "__R$ ${valor.toFixed(2)}__",
+    value: "__R$ ${valor.toFixed(2)}__",
     inline: true
     },
     {
     name: "__**Estoque**__",
-    valeu: "Limitado",
+    value: "Limitado",
     inline: true
     },
   )
@@ -74,6 +74,7 @@ const embed = new EmbedBuilder()
     
 })
  .setTimestamp();
+
 
 const row = new ActionRowBuilder().addComponents(
   new ButtonBuilder()
