@@ -1,17 +1,21 @@
 const mercadopago = require('mercadopago');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
-const db = require('../database/db'); // importa o banco
+const db = require('../database/db');
 
-module.exports = async function gerarPix(pedido, email) {
-  // Busca a credencial do banco
-  const token = await new Promise((resolve, reject) => {
-    db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
-      if (err || !row || !row.value) reject(new Error('Credencial do Mercado Pago não configurada. Use /credencial.'));
-      else resolve(row.value);
+mercadopago.configure({ access_token: process.env.MERCADO_PAGO_ACCESS_TOKEN });
+
+module.exports = async function gerarPix(pedido, email, user, quantidade) {
+  // Busca o produto no banco de dados usando o produto_id do pedido
+  const produto = await new Promise((resolve, reject) => {
+    db.get(`SELECT * FROM produtos WHERE id = ?`, [pedido.produto_id], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
     });
   });
 
-  mercadopago.configure({ access_token: token });
+  if (!produto) {
+    throw new Error('Produto não encontrado para este pedido.');
+  }
 
   const payment_data = {
     transaction_amount: pedido.valor,
@@ -30,13 +34,8 @@ module.exports = async function gerarPix(pedido, email) {
     db.run(`UPDATE pedidos SET pagamento_id = ?, qr_code = ? WHERE pedido_id = ?`,
       [payment.id, qr_code, pedido.pedido_id],
       function(err) {
-        if (err) {
-          console.error('❌ Erro ao salvar pagamento_id:', err);
-          reject(err);
-        } else {
-          console.log('✅ pagamento_id salvo:', payment.id);
-          resolve();
-        }
+        if (err) reject(err);
+        else resolve();
       }
     );
   });
@@ -45,25 +44,25 @@ module.exports = async function gerarPix(pedido, email) {
   const attachment = new AttachmentBuilder(buffer, { name: 'qrcode.png' });
 
   const embed = new EmbedBuilder()
-  .setColor("#33FF33")
-  .setTitle(`COMPRA - **${produto.nome}**`)
-  .setDescription(`Olá ${user}, você selecionou para adquirir nosso **${produto.nome}**, que excelente escolha!`)
-  .addFields(
-    { name: "Valor", value: `R$ **${(produto.valor * quantidade).toFixed(2)}**`, inline: true },
-    { name: "Entrega", value: "Automática", inline: true },
-    { name: "Status Pagamento", value: "Pendente", inline: true },
-    { name: "Produto", value: `**${produto.nome}**`, inline: true },
-    { name: "Pagamento", value: "Via Pix", inline: true },
-    { name: "By", value: "Payzex", inline: true }
-  )
-  .setImage('attachment://qrcode.png')
-  .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
-  .addFields({ name: "Chave Pix", value: `\`\`\`${qr_code}\`\`\`` })
-  .setFooter({
-    text: "PAYZEX • SISTEMA PAGAMENTO",
-    iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
-  })
-  .setTimestamp();
+    .setColor("#33FF33")
+    .setTitle(`COMPRA - **${produto.nome}**`)
+    .setDescription(`Olá ${user}, você selecionou para adquirir nosso **${produto.nome}**, que excelente escolha!`)
+    .addFields(
+      { name: "Valor", value: `R$ **${(produto.valor * quantidade).toFixed(2)}**`, inline: true },
+      { name: "Entrega", value: "Automática", inline: true },
+      { name: "Status Pagamento", value: "Pendente", inline: true },
+      { name: "Produto", value: `**${produto.nome}**`, inline: true },
+      { name: "Pagamento", value: "Via Pix", inline: true },
+      { name: "By", value: "Payzex", inline: true }
+    )
+    .setImage('attachment://qrcode.png')
+    .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
+    .addFields({ name: "Chave Pix", value: `\`\`\`${qr_code}\`\`\`` })
+    .setFooter({
+      text: "PAYZEX • SISTEMA PAGAMENTO",
+      iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
+    })
+    .setTimestamp();
 
-return { embed, attachment, qr_code };
+  return { embed, attachment, qr_code };
 };
