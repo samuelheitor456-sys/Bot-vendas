@@ -187,11 +187,11 @@ const row = new ActionRowBuilder().addComponents(
           const embed = new EmbedBuilder()
   .setColor("#33FF33")
   .setTitle(`PEDIDO Nº ${pedidoNumero}`)
-  .setDescription(`**${nome}**`)
+  .setDescription(`**${produto.nome}**`)
   .addFields(
     {
       name: "Valor",
-      value: `R$ ${valor.toFixed(2)}`,
+      value: `R$ ${(produto.valor * quantidade).toFixed(2)}`,
       inline: true
     },
     {
@@ -220,7 +220,7 @@ const row = new ActionRowBuilder().addComponents(
       inline: true
     }
   )
-  .setImage(imagem)
+  .setImage(produto.imagem) // usa a imagem do produto (se existir)
   .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
   .setFooter({
     text: "PAYZEX • Sistema Automatizado",
