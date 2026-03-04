@@ -544,6 +544,25 @@ module.exports = async (interaction, client) => {
       await finalizarCompra(interaction, client);
     }
 
+    // ========== BOTÃO GERAR PIX (DENTRO DO TICKET) ==========
+    else if (customId.startsWith('gerar_pix_')) {
+      const pedidoId = customId.replace('gerar_pix_', '');
+      const modal = new ModalBuilder()
+        .setCustomId(`modal_email_${pedidoId}`)
+        .setTitle('Gerar PIX');
+
+      const emailInput = new TextInputBuilder()
+        .setCustomId('email')
+        .setLabel('Seu e-mail para o PIX')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('exemplo@email.com');
+
+      const row = new ActionRowBuilder().addComponents(emailInput);
+      modal.addComponents(row);
+      await interaction.showModal(modal);
+    }
+
     // ========== BOTÕES DE TICKET ==========
     else if (customId.startsWith('confirmar_')) {
       if (!interaction.member.roles.cache.has(process.env.VENDEDOR_ROLE_ID)) {
@@ -603,6 +622,37 @@ module.exports = async (interaction, client) => {
         }
         interaction.reply({ content: `✅ Canal de vendas definido para <#${canalId}>.`, ephemeral: true });
       });
+    }
+
+    // ========== SELEÇÃO DE PRODUTO PARA CARGO/ESTOQUE ==========
+    else if (customId === 'selecionar_produto_cargo') {
+      const produtoId = interaction.values[0];
+      const modal = new ModalBuilder()
+        .setCustomId(`modal_cargo_${produtoId}`)
+        .setTitle('Adicionar Cargo ao Produto');
+      const cargoInput = new TextInputBuilder()
+        .setCustomId('cargo_id')
+        .setLabel('ID do cargo (ex: 123456789)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+      const row = new ActionRowBuilder().addComponents(cargoInput);
+      modal.addComponents(row);
+      await interaction.showModal(modal);
+    }
+
+    else if (customId === 'selecionar_produto_estoque') {
+      const produtoId = interaction.values[0];
+      const modal = new ModalBuilder()
+        .setCustomId(`modal_estoque_${produtoId}`)
+        .setTitle('Ajustar Estoque');
+      const estoqueInput = new TextInputBuilder()
+        .setCustomId('estoque')
+        .setLabel('Nova quantidade (-1 ilimitado)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+      const row = new ActionRowBuilder().addComponents(estoqueInput);
+      modal.addComponents(row);
+      await interaction.showModal(modal);
     }
 
   } catch (error) {
