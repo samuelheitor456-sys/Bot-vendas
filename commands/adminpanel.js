@@ -18,17 +18,17 @@ module.exports = {
         {
           name: "**• Sistema**",
           value: "• Adicione quantos produtos você quiser, cada produto irá conter, Nome, Descrição, Capa, e Valor e Estoque",
-          inline: true
+          inline: false
         },
         {
           name: "**• Formas de pagamento**",
           value: "• todo o produto adicionados, terá apenas uma forma de pagamento, que será via pix, cada produto terá um valor fixo sem acréscimo taxa ou algo do tipo",
-          inline: true
+          inline: false
         },
         {
           name: "**• Como adicionar o produto**",
           value: "• Para adicionar um produto basta clicar em, \"Publicar\" em seguida definir seu canal de vendas, em seguida coloque as informações do seu produto, feito isso coloque um cargo personalizado no produto, clicando em \"Cargo\", feito isso defina o estoque clicando em \"Estoque\" feito isso sue produto estar prontinho",
-          inline: true
+          inline: false
         }
       )
       .setImage('https://cdn.discordapp.com/attachments/1477322750229090507/1478878249173127208/standard_2.gif?ex=69aa0032&is=69a8aeb2&hm=2a57eb55d7020843a5fbc7c5a865b3111ec5772abbee5560f8d25cc952da82d7&')
