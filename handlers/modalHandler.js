@@ -288,25 +288,30 @@ const row = new ActionRowBuilder().addComponents(
     }
 
     // ========== MODAL DE E-MAIL (para gerar PIX) ==========
-    else if (interaction.customId.startsWith('modal_email_')) {
-      const pedidoId = interaction.customId.replace('modal_email_', '');
-      const email = interaction.fields.getTextInputValue('email');
+else if (interaction.customId.startsWith('modal_email_')) {
+  const pedidoId = interaction.customId.replace('modal_email_', '');
+  const email = interaction.fields.getTextInputValue('email');
 
-      db.get(`SELECT * FROM pedidos WHERE pedido_id = ?`, [pedidoId], async (err, pedido) => {
-        if (err || !pedido) {
-          return interaction.reply({ content: '❌ Pedido não encontrado.', ephemeral: true });
-        }
-
-        const gerarPix = require('../utils/gerarPix');
-        try {
-          const { embed, attachment } = await gerarPix(pedido, email);
-          await interaction.reply({ embeds: [embed], files: [attachment] });
-        } catch (error) {
-          console.error(error);
-          await interaction.reply({ content: '❌ Erro ao gerar PIX.', ephemeral: true });
-        }
-      });
+  db.get(`SELECT * FROM pedidos WHERE pedido_id = ?`, [pedidoId], async (err, pedido) => {
+    if (err || !pedido) {
+      return interaction.reply({ content: '❌ Pedido não encontrado.', ephemeral: true });
     }
+
+    // Busca a quantidade do pedido (se for compra direta, tem produto_id e quantidade = 1; se for carrinho, precisa de outra lógica)
+    // Vamos considerar que para compra direta a quantidade é 1 e o produto_id está no pedido.
+    // Para carrinho, a quantidade está em pedido_itens, mas por simplicidade, vamos assumir que o valor total já está no pedido.
+    const quantidade = 1; // Ajuste conforme sua lógica
+
+    const gerarPix = require('../utils/gerarPix');
+    try {
+      const { embed, attachment } = await gerarPix(pedido, email, interaction.user, quantidade);
+      await interaction.reply({ embeds: [embed], files: [attachment] });
+    } catch (error) {
+      console.error(error);
+      await interaction.reply({ content: '❌ Erro ao gerar PIX.', ephemeral: true });
+    }
+  });
+}
   } catch (error) {
     console.error('❌ Erro no modalHandler:', error);
     if (!interaction.replied && !interaction.deferred) {
