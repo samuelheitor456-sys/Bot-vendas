@@ -2,9 +2,21 @@ const mercadopago = require('mercadopago');
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const db = require('../database/db');
 
-mercadopago.configure({ access_token: process.env.MERCADO_PAGO_ACCESS_TOKEN });
-
 module.exports = async function gerarPix(pedido, email, user, quantidade) {
+  // Busca a credencial do banco
+  const token = await new Promise((resolve, reject) => {
+    db.get(`SELECT value FROM config WHERE key = 'mp_access_token'`, (err, row) => {
+      if (err || !row || !row.value) {
+        reject(new Error('Credencial do Mercado Pago não configurada. Use /credencial.'));
+      } else {
+        resolve(row.value);
+      }
+    });
+  });
+
+  // Configura o Mercado Pago com o token obtido
+  mercadopago.configure({ access_token: token });
+
   // Busca o produto no banco de dados usando o produto_id do pedido
   const produto = await new Promise((resolve, reject) => {
     db.get(`SELECT * FROM produtos WHERE id = ?`, [pedido.produto_id], (err, row) => {
