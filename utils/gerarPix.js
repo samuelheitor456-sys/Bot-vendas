@@ -45,22 +45,25 @@ module.exports = async function gerarPix(pedido, email) {
   const attachment = new AttachmentBuilder(buffer, { name: 'qrcode.png' });
 
   const embed = new EmbedBuilder()
-    .setColor(0x00BFFF)
-    .setAuthor({ name: '💳 PAGAMENTO PIX' })
-    .setTitle(pedido.pedido_id)
-    .setDescription(`
-━━━━━━━━━━━━━━━━━━
-**Valor:** R$ ${pedido.valor}
-**E-mail:** ${email}
-━━━━━━━━━━━━━━━━━━
-1️⃣ Abra o app do banco
-2️⃣ Escaneie o QR Code
-3️⃣ Confirme o pagamento
-━━━━━━━━━━━━━━━━━━
-✅ Pagamento seguro via Mercado Pago
-    `)
-    .setImage('attachment://qrcode.png')
-    .setTimestamp();
+  .setColor("#33FF33")
+  .setTitle(`COMPRA - **${produto.nome}**`)
+  .setDescription(`Olá ${user}, você selecionou para adquirir nosso **${produto.nome}**, que excelente escolha!`)
+  .addFields(
+    { name: "Valor", value: `R$ **${(produto.valor * quantidade).toFixed(2)}**`, inline: true },
+    { name: "Entrega", value: "Automática", inline: true },
+    { name: "Status Pagamento", value: "Pendente", inline: true },
+    { name: "Produto", value: `**${produto.nome}**`, inline: true },
+    { name: "Pagamento", value: "Via Pix", inline: true },
+    { name: "By", value: "Payzex", inline: true }
+  )
+  .setImage('attachment://qrcode.png')
+  .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
+  .addFields({ name: "Chave Pix", value: `\`\`\`${qr_code}\`\`\`` })
+  .setFooter({
+    text: "PAYZEX • SISTEMA PAGAMENTO",
+    iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
+  })
+  .setTimestamp();
 
-  return { embed, attachment, qr_code };
+return { embed, attachment, qr_code };
 };
