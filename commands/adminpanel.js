@@ -43,12 +43,14 @@ module.exports = {
       new ButtonBuilder()
         .setCustomId('admin_adicionar_produto')
         .setLabel('Publicar')
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger),
+        
         new ButtonBuilder()
         .setCustomId('admin_adicionar_cargo')
         .setLabel('Cargo')
         .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
+        
+        new ButtonBuilder()
         .setCustomId('admin_adicionar_estoque')
         .setLabel('Estoque')
         .setStyle(ButtonStyle.Success),
