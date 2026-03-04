@@ -43,18 +43,15 @@ module.exports = {
       new ButtonBuilder()
         .setCustomId('admin_adicionar_produto')
         .setLabel('Publicar')
-        .setStyle(ButtonStyle.Success)
-    );
-
-    const row2 = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
+        .setStyle(ButtonStyle.Danger)
+        new ButtonBuilder()
         .setCustomId('admin_adicionar_cargo')
         .setLabel('Cargo')
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId('admin_adicionar_estoque')
         .setLabel('Estoque')
-        .setStyle(ButtonStyle.Success)
+        .setStyle(ButtonStyle.Success),
     );
 
     await interaction.channel.send({ embeds: [embed], components: [row1, row2] });
