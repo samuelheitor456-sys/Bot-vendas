@@ -113,7 +113,6 @@ app.post('/webhook', async (req, res) => {
                   inline: true
                 }
               )
-              .setImage(imagem)
               .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
               .setFooter({
                 text: "PAYZEX • SISTEMA PAGAMENTO",
