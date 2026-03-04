@@ -49,7 +49,7 @@ module.exports = async (interaction, client) => {
 
           const produtoId = this.lastID;
 
-const embed = new EmbedBuilder()
+          const embed = new EmbedBuilder()
   .setColor("#33FF33")
   .setTitle("__**COMPRA SEGURA**__")
   .setDescription(`**${nome}**\n${descricao}`)
@@ -105,7 +105,6 @@ const row = new ActionRowBuilder().addComponents(
     .setLabel('Adicionar ao Carrinho')
     .setStyle(ButtonStyle.Secondary)
 );
-
 
           canal.send({ embeds: [embed], components: [row] })
             .then(() => {
@@ -230,15 +229,9 @@ const row = new ActionRowBuilder().addComponents(
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
-              .setCustomId(`confirmar_${pedidoId}`)
-              .setLabel('✅ CONFIRMAR VENDA')
-              .setStyle(ButtonStyle.Success)
-              .setEmoji('✅'),
-            new ButtonBuilder()
-              .setCustomId(`fechar_${pedidoId}`)
-              .setLabel('❌ FECHAR TICKET')
-              .setStyle(ButtonStyle.Danger)
-              .setEmoji('❌')
+              .setCustomId(`gerar_pix_${pedidoId}`)
+              .setLabel('Gerar PIX')
+              .setStyle(ButtonStyle.Primary)
           );
 
           await ticketChannel.send({ embeds: [embed], components: [row] });
@@ -291,6 +284,27 @@ const row = new ActionRowBuilder().addComponents(
         }
         interaction.reply({ content: `✅ Estoque do produto ID ${produtoId} atualizado para ${estoque === -1 ? 'ilimitado' : estoque}.`, ephemeral: true });
         setTimeout(() => interaction.deleteReply(), 2000);
+      });
+    }
+
+    // ========== MODAL DE E-MAIL (para gerar PIX) ==========
+    else if (interaction.customId.startsWith('modal_email_')) {
+      const pedidoId = interaction.customId.replace('modal_email_', '');
+      const email = interaction.fields.getTextInputValue('email');
+
+      db.get(`SELECT * FROM pedidos WHERE pedido_id = ?`, [pedidoId], async (err, pedido) => {
+        if (err || !pedido) {
+          return interaction.reply({ content: '❌ Pedido não encontrado.', ephemeral: true });
+        }
+
+        const gerarPix = require('../utils/gerarPix');
+        try {
+          const { embed, attachment } = await gerarPix(pedido, email);
+          await interaction.reply({ embeds: [embed], files: [attachment] });
+        } catch (error) {
+          console.error(error);
+          await interaction.reply({ content: '❌ Erro ao gerar PIX.', ephemeral: true });
+        }
       });
     }
   } catch (error) {
