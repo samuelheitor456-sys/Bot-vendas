@@ -51,7 +51,7 @@ module.exports = async (interaction, client) => {
 
 const embed = new EmbedBuilder()
   .setColor("#33FF33")
-  .setTitle("__**🟢 COMPRA SEGURA**__")
+  .setTitle("__**COMPRA SEGURA**__")
   .setDescription(`**${nome}**\n${descricao}`)
   .addFields(
     {
@@ -185,42 +185,48 @@ const row = new ActionRowBuilder().addComponents(
           }
 
           const embed = new EmbedBuilder()
-            .setColor(0x9B59B6)
-            .setTitle(`🛒 **COMPRA DO PEDIDO ${pedidoNumero}**`)
-            .setDescription(`
-━━━━━━━━━━━━━━━━━━━━━━━━
-**👤 RESPONSÁVEL:** <@&${vendedorRole}>
-━━━━━━━━━━━━━━━━━━━━━━━━
-
-**📦 PRODUTO:** ${produto.nome} x${quantidade}
-
-**💰 VALOR:** R$ ${valorTotal.toFixed(2)}
-
-**👤 CLIENTE:** ${user}
-
-**📝 DESCRIÇÃO:** ${produto.descricao}
-
-━━━━━━━━━━━━━━━━━━━━━━━━
-**💳 PAGAMENTO VIA PIX**
-━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔹 **Como gerar o Pix?**
-Digite o comando abaixo neste canal:
-
-\`\`\`
-/email seu@email.com
-\`\`\`
-
-✅ **Pagamento 100% seguro processado pelo Mercado Pago**
-⏱️ Após a confirmação, o produto será entregue automaticamente.
-
-━━━━━━━━━━━━━━━━━━━━━━━━
-            `)
-            .setFooter({ 
-              text: 'BOT DE VENDAS PRIME WOLF PACK | Confiança e segurança em cada compra', 
-              iconURL: 'https://cdn.discordapp.com/emojis/1234567890.png' 
-            })
-            .setTimestamp();
+  .setColor("#33FF33")
+  .setTitle(`PEDIDO Nº ${pedidoNumero}`)
+  .setDescription(`**${nome}**`)
+  .addFields(
+    {
+      name: "Valor",
+      value: `R$ ${valor.toFixed(2)}`,
+      inline: true
+    },
+    {
+      name: "Cliente",
+      value: `${user}`,
+      inline: true
+    },
+    {
+      name: "Supervisor",
+      value: `<@&${vendedorRole}>`,
+      inline: true
+    },
+    {
+      name: "Entrega",
+      value: "Automática",
+      inline: true
+    },
+    {
+      name: "Pagamento",
+      value: "Via Pix",
+      inline: true
+    },
+    {
+      name: "Suporte",
+      value: "24 Horas",
+      inline: true
+    }
+  )
+  .setImage(imagem)
+  .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
+  .setFooter({
+    text: "PAYZEX • Sistema Automatizado",
+    iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
+  })
+  .setTimestamp();
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
