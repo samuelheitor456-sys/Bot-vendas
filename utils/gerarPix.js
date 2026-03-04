@@ -67,8 +67,7 @@ module.exports = async function gerarPix(pedido, email, user, quantidade) {
       { name: "Pagamento", value: "Via Pix", inline: true },
       { name: "By", value: "Payzex", inline: true }
     )
-    .setImage('attachment://qrcode.png')
-    .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
+    .setThumbnail('attachment://qrcode.png')
     .addFields({ name: "Chave Pix", value: `\`\`\`${qr_code}\`\`\`` })
     .setFooter({
       text: "PAYZEX • SISTEMA PAGAMENTO",
