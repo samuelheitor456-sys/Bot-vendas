@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const db = require('./database/db');
@@ -63,8 +63,17 @@ app.post('/webhook', async (req, res) => {
 
             const canal = guild.channels.cache.find(c => c.name === pedido.pedido_id);
             let links = [];
+            let primeiroProduto = null;
+            let quantidade = 0;
 
             if (itens && itens.length > 0) {
+              // Pega o primeiro item para o embed
+              const item = itens[0];
+              primeiroProduto = await new Promise((resolve) => {
+                db.get(`SELECT * FROM produtos WHERE id = ?`, [item.produto_id], (err, row) => resolve(row));
+              });
+              quantidade = item.quantidade;
+
               for (const item of itens) {
                 const produto = await new Promise((resolve) => {
                   db.get(`SELECT link FROM produtos WHERE id = ?`, [item.produto_id], (err, row) => resolve(row));
@@ -72,28 +81,70 @@ app.post('/webhook', async (req, res) => {
                 if (produto) links.push(produto.link);
               }
             } else {
-              const produto = await new Promise((resolve) => {
+              primeiroProduto = await new Promise((resolve) => {
+                db.get(`SELECT * FROM produtos WHERE id = ?`, [pedido.produto_id], (err, row) => resolve(row));
+              });
+              quantidade = 1; // compra direta
+              const produtoLink = await new Promise((resolve) => {
                 db.get(`SELECT link FROM produtos WHERE id = ?`, [pedido.produto_id], (err, row) => resolve(row));
               });
-              if (produto) links.push(produto.link);
+              if (produtoLink) links.push(produtoLink.link);
             }
 
-            // Envia DM para o cliente
+            // ==================== EMBED DE APROVAÇÃO ====================
+            const embedAprovado = new EmbedBuilder()
+              .setColor("#33FF33")
+              .setTitle("🟢__**Pagamento Aprovado**__")
+              .setDescription(`Olá <@${pedido.comprador_id}>, você acabou de adquirir o produto **${primeiroProduto?.nome || 'Produto'}**! Enviamos seu produto em sua **DM**.`)
+              .addFields(
+                {
+                  name: "Valor",
+                  value: `R$ **${pedido.valor.toFixed(2)}**`,
+                  inline: true
+                },
+                {
+                  name: "Pedido",
+                  value: `Nº ${pedido.pedido_numero || pedido.pedido_id.split('-')[1]}`,
+                  inline: true
+                },
+                {
+                  name: "Pagamento",
+                  value: "Recebido",
+                  inline: true
+                }
+              )
+              .setImage(imagem)
+              .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
+              .setFooter({
+                text: "PAYZEX • SISTEMA PAGAMENTO",
+                iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
+              })
+              .setTimestamp();
+
+            // ==================== ENVIO DA CONFIRMAÇÃO ====================
+            let linksMessage = links.length > 0 ? links.map(l => l).join('\n') : null;
+
+            // Envia DM para o cliente com embed e links
             try {
               const user = await client.users.fetch(pedido.comprador_id);
               if (user) {
-                const dmMessage = `Muito obrigado pela compra!\nNós da equipe Payzex agradecemos muito!\n\nSeu pedido está logo abaixo:\n${links.join('\n')}`;
-                await user.send(dmMessage);
-                console.log(`✅ Produto enviado por DM para ${user.tag}`);
+                await user.send({ 
+                  content: linksMessage ? `**Seus produtos:**\n${linksMessage}` : null, 
+                  embeds: [embedAprovado] 
+                });
+                console.log(`✅ Confirmação enviada por DM para ${user.tag}`);
               }
             } catch (e) {
               console.error('❌ Erro ao enviar DM:', e);
             }
 
-            // Envia mensagem no ticket (se ainda existir)
+            // Envia mensagem no ticket (se ainda existir) com o embed
             if (canal) {
-              await canal.send('✅ **Pagamento efetuado!** Muito obrigado ❤️\nEnviamos seu produto na sua DM.');
-              console.log(`✅ Mensagem enviada no canal ${pedido.pedido_id}`);
+              await canal.send({ 
+                content: linksMessage ? `**Produtos:**\n${linksMessage}` : null,
+                embeds: [embedAprovado] 
+              });
+              console.log(`✅ Embed de aprovação enviado no canal ${pedido.pedido_id}`);
             }
 
             // Atribuir cargo se existir
@@ -149,7 +200,6 @@ const client = new Client({
 
 client.commands = new Collection();
 
-// Carregar comandos da pasta commands
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
@@ -176,11 +226,9 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async interaction => {
-  // Comandos de barra
   if (interaction.isCommand()) {
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
-
     try {
       await command.execute(interaction, client, db);
     } catch (error) {
@@ -191,14 +239,11 @@ client.on('interactionCreate', async interaction => {
         await interaction.editReply({ content: '❌ Erro ao executar comando.' });
       }
     }
-  }
-  // Botões, modais e menus
-  else if (interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) {
+  } else if (interaction.isButton() || interaction.isModalSubmit() || interaction.isStringSelectMenu()) {
     let handlerPath;
     if (interaction.isButton()) handlerPath = './handlers/buttonHandler';
     else if (interaction.isModalSubmit()) handlerPath = './handlers/modalHandler';
     else handlerPath = './handlers/selectHandler';
-
     try {
       const handler = require(handlerPath);
       await handler(interaction, client, db);
