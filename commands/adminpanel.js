@@ -56,7 +56,7 @@ module.exports = {
         .setStyle(ButtonStyle.Success),
     );
 
-    await interaction.channel.send({ embeds: [embed], components: [row1, row2] });
+    await interaction.channel.send({ embeds: [embed], components: [row] });
     await interaction.reply({ content: '✅ Painel fixado no canal!', ephemeral: true });
   }
 };
