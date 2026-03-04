@@ -39,7 +39,7 @@ module.exports = {
       })
       .setTimestamp();
 
-    const row1 = new ActionRowBuilder().addComponents(
+    const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('admin_adicionar_produto')
         .setLabel('Publicar')
