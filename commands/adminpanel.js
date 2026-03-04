@@ -17,12 +17,12 @@ module.exports = {
       .addFields(
         {
           name: "**• Sistema**",
-          value: "• Adicione quantos produtos você quiser, cada produto irá conter, Nome, Descrição, Capa, e Valor e Estoque",
+          value: "• Adicione quantos produtos você quiser, cada produto irá conter, Nome, Descrição, Capa, Valor e Estoque",
           inline: false
         },
         {
           name: "**• Formas de pagamento**",
-          value: "• todo o produto adicionados, terá apenas uma forma de pagamento, que será via pix, cada produto terá um valor fixo sem acréscimo taxa ou algo do tipo",
+          value: "• todos os produtos adicionados, terá apenas uma forma de pagamento, que será via pix, cada produto terá um valor fixo sem acréscimos, taxas, ou algo do tipo",
           inline: false
         },
         {
