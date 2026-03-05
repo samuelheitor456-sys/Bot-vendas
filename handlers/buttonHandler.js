@@ -1,5 +1,6 @@
 const { ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const db = require('../database/db');
+const { isAdmin } = require('../utils/permissions');
 
 // ==================== FUNÇÕES AUXILIARES ====================
 
@@ -307,9 +308,9 @@ module.exports = async (interaction, client) => {
   const customId = interaction.customId;
 
   try {
-    // ========== BOTÕES DO PAINEL ADMIN ==========
+    // ========== BOTÕES DO PAINEL ADMIN (verificação com isAdmin) ==========
     if (customId === 'admin_definir_canal') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
       const channels = interaction.guild.channels.cache
@@ -327,7 +328,7 @@ module.exports = async (interaction, client) => {
     }
 
     else if (customId === 'admin_adicionar_produto') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
       const channels = interaction.guild.channels.cache
@@ -344,7 +345,7 @@ module.exports = async (interaction, client) => {
     }
 
     else if (customId === 'admin_listar_produtos') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
       db.all(`SELECT id, nome, valor, estoque FROM produtos ORDER BY id`, (err, rows) => {
@@ -365,7 +366,7 @@ module.exports = async (interaction, client) => {
     }
 
     else if (customId === 'admin_backup') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
       const backupCmd = require('../commands/backup.js');
@@ -373,22 +374,22 @@ module.exports = async (interaction, client) => {
     }
 
     else if (customId === 'admin_adicionar_cargo') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
       await mostrarListaProdutosParaSelecao(interaction, 'cargo');
     }
 
     else if (customId === 'admin_adicionar_estoque') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
       await mostrarListaProdutosParaSelecao(interaction, 'estoque');
     }
 
-    // ========== BOTÕES DE CREDENCIAL ==========
+    // ========== BOTÕES DE CREDENCIAL (verificação com isAdmin) ==========
     else if (customId === 'cadastrar_credencial') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
 
@@ -422,7 +423,7 @@ module.exports = async (interaction, client) => {
     }
 
     else if (customId === 'log_credencial') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
 
@@ -439,7 +440,7 @@ module.exports = async (interaction, client) => {
     }
 
     else if (customId === 'excluir_credencial') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
 
@@ -565,7 +566,7 @@ module.exports = async (interaction, client) => {
 
     // ========== BOTÃO DEFINIR THUMBNAIL ==========
     else if (customId === 'definir_thumb') {
-      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+      if (!await isAdmin(interaction.member)) {
         return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
       }
 
@@ -583,6 +584,26 @@ module.exports = async (interaction, client) => {
       const row = new ActionRowBuilder().addComponents(urlInput);
       modal.addComponents(row);
       await interaction.showModal(modal);
+    }
+
+    // ========== BOTÃO DEFINIR CARGO ADMIN ==========
+    else if (customId === 'definir_cargo_admin') {
+      const roles = interaction.guild.roles.cache
+        .filter(r => r.name !== '@everyone')
+        .map(r => ({ label: r.name, value: r.id, description: `ID: ${r.id}` }))
+        .slice(0, 25);
+
+      if (roles.length === 0) {
+        return interaction.reply({ content: '❌ Nenhum cargo disponível.', ephemeral: true });
+      }
+
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('selecionar_cargo_admin')
+        .setPlaceholder('Escolha o cargo de administrador')
+        .addOptions(roles);
+
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+      await interaction.reply({ content: 'Selecione o cargo que terá permissões de administrador:', components: [row], ephemeral: true });
     }
 
     // ========== BOTÕES DE TICKET (CONFIRMAR/FECHAR) ==========
