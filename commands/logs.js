@@ -6,10 +6,10 @@ module.exports = {
     .setDescription('Mostra o histórico de vendas concluídas'),
 
   async execute(interaction, client, db) {
-    const adminRole = process.env.ADMIN_ROLE_ID;
-    if (!interaction.member.roles.cache.has(adminRole)) {
-      return interaction.reply({ content: '❌ Sem permissão.', ephemeral: true });
-    }
+    const { isAdmin } = require('../utils/permissions');
+if (!await isAdmin(interaction.member)) {
+  return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
+}
 
     db.all(`SELECT * FROM pedidos WHERE status = 'concluido' ORDER BY concluido_em DESC LIMIT 20`, (err, rows) => {
       if (err) {
