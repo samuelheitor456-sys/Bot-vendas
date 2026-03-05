@@ -103,6 +103,19 @@ module.exports = async (interaction, client) => {
       modal.addComponents(row);
       await interaction.showModal(modal);
     }
+
+    // ========== NOVO: SELEÇÃO DE CARGO ADMIN ==========
+    else if (interaction.customId === 'selecionar_cargo_admin') {
+      const cargoId = interaction.values[0];
+      db.run(`INSERT OR REPLACE INTO config (key, value) VALUES ('admin_role_id', ?)`, [cargoId], function(err) {
+        if (err) {
+          console.error(err);
+          return interaction.reply({ content: '❌ Erro ao salvar cargo.', ephemeral: true });
+        }
+        interaction.reply({ content: `✅ Cargo de administrador definido para <@&${cargoId}>.`, ephemeral: true });
+      });
+    }
+
   } catch (error) {
     console.error('❌ Erro no selectHandler:', error);
     if (!interaction.replied && !interaction.deferred) {
