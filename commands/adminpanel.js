@@ -6,10 +6,10 @@ module.exports = {
     .setDescription('Abre o painel administrativo do bot (admin)'),
 
   async execute(interaction) {
-    if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
-      return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
-    }
-
+    const { isAdmin } = require('../utils/permissions');
+if (!await isAdmin(interaction.member)) {
+  return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
+}
     const embed = new EmbedBuilder()
       .setColor("#33FF33")
       .setTitle("**PAYZEX PRODUTOS**")
