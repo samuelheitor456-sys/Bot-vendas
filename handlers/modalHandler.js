@@ -18,6 +18,21 @@ module.exports = async (interaction, client) => {
       });
     }
 
+    // ========== MODAL DE THUMBNAIL ==========
+    else if (interaction.customId === 'modal_thumb') {
+      const thumbUrl = interaction.fields.getTextInputValue('thumb_url');
+      if (!thumbUrl.startsWith('http')) {
+        return interaction.reply({ content: '❌ URL inválida. Deve começar com http:// ou https://', ephemeral: true });
+      }
+      db.run(`INSERT OR REPLACE INTO config (key, value) VALUES ('thumb_url', ?)`, [thumbUrl], function(err) {
+        if (err) {
+          console.error(err);
+          return interaction.reply({ content: '❌ Erro ao salvar thumbnail.', ephemeral: true });
+        }
+        interaction.reply({ content: '✅ Thumbnail configurada com sucesso!', ephemeral: true });
+      });
+    }
+
     // ========== MODAL DE PRODUTO (COM CANAL VIA CUSTOM ID) ==========
     else if (interaction.customId.startsWith('modal_produto_canal_')) {
       const canalId = interaction.customId.replace('modal_produto_canal_', '');
@@ -39,6 +54,13 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ URL da imagem deve começar com http:// ou https://', ephemeral: true });
       }
 
+      // Busca a thumbnail configurada
+      const thumbUrl = await new Promise((resolve) => {
+        db.get(`SELECT value FROM config WHERE key = 'thumb_url'`, (err, row) => {
+          resolve(row?.value || "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png");
+        });
+      });
+
       db.run(`INSERT INTO produtos (nome, descricao, valor, link, imagem, canal_id, estoque) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [nome, descricao, valor, link, imagem, canal.id, -1],
         function(err) {
@@ -50,61 +72,35 @@ module.exports = async (interaction, client) => {
           const produtoId = this.lastID;
 
           const embed = new EmbedBuilder()
-  .setColor("#33FF33")
-  .setTitle("__**COMPRA SEGURA**__")
-  .setDescription(`**${nome}**\n${descricao}`)
-  .addFields(
-    {
-      name: "Valor",
-      value: `R$ ${valor.toFixed(2)}`,
-      inline: true
-    },
-    {
-      name: "Estoque",
-      value: "Limitado",
-      inline: true
-    },
-    {
-      name: "Entrega",
-      value: "Automática",
-      inline: true
-    },
-    {
-      name: "Suporte",
-      value: "24 Horas",
-      inline: true
-    },
-    {
-      name: "Pagamento",
-      value: "via pix",
-      inline: true
-    },
-    {
-      name: "By",
-      value: "Payzex",
-      inline: true
-    }
-  )
-  .setImage(imagem)
-  .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
-  .setFooter({
-    text: "Bot Vendas Payzex",
-    
-    iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
-  })
-  .setTimestamp();
+            .setColor("#33FF33")
+            .setTitle("__**COMPRA SEGURA**__")
+            .setDescription(`**${nome}**\n${descricao}`)
+            .addFields(
+              { name: "Valor", value: `R$ ${valor.toFixed(2)}`, inline: true },
+              { name: "Estoque", value: "Limitado", inline: true },
+              { name: "Entrega", value: "Automática", inline: true },
+              { name: "Suporte", value: "24 Horas", inline: true },
+              { name: "Pagamento", value: "via pix", inline: true },
+              { name: "By", value: "Payzex", inline: true }
+            )
+            .setImage(imagem)
+            .setThumbnail(thumbUrl) // ← usa a URL configurada
+            .setFooter({
+              text: "Bot Vendas Payzex",
+              iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
+            })
+            .setTimestamp();
 
-const row = new ActionRowBuilder().addComponents(
-  new ButtonBuilder()
-    .setCustomId(`comprar_agora_${produtoId}`)
-    .setLabel('Comprar')
-    .setStyle(ButtonStyle.Success),
-
-  new ButtonBuilder()
-    .setCustomId(`add_carrinho_${produtoId}`)
-    .setLabel('Adicionar ao Carrinho')
-    .setStyle(ButtonStyle.Secondary)
-);
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`comprar_agora_${produtoId}`)
+              .setLabel('Comprar')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(`add_carrinho_${produtoId}`)
+              .setLabel('Adicionar ao Carrinho')
+              .setStyle(ButtonStyle.Secondary)
+          );
 
           canal.send({ embeds: [embed], components: [row] })
             .then(() => {
@@ -183,49 +179,32 @@ const row = new ActionRowBuilder().addComponents(
             db.run(`UPDATE produtos SET estoque = ? WHERE id = ?`, [novoEstoque, produto.id]);
           }
 
+          // Busca a thumbnail configurada para o ticket (opcional)
+          const thumbUrl = await new Promise((resolve) => {
+            db.get(`SELECT value FROM config WHERE key = 'thumb_url'`, (err, row) => {
+              resolve(row?.value || "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png");
+            });
+          });
+
           const embed = new EmbedBuilder()
-  .setColor("#33FF33")
-  .setTitle(`PEDIDO Nº ${pedidoNumero}`)
-  .setDescription(`**${produto.nome}**`)
-  .addFields(
-    {
-      name: "Valor",
-      value: `R$ ${(produto.valor * quantidade).toFixed(2)}`,
-      inline: true
-    },
-    {
-      name: "Cliente",
-      value: `${user}`,
-      inline: true
-    },
-    {
-      name: "Supervisor",
-      value: `<@&${vendedorRole}>`,
-      inline: true
-    },
-    {
-      name: "Entrega",
-      value: "Automática",
-      inline: true
-    },
-    {
-      name: "Pagamento",
-      value: "Via Pix",
-      inline: true
-    },
-    {
-      name: "Suporte",
-      value: "24 Horas",
-      inline: true
-    }
-  )
-  .setImage(produto.imagem) // usa a imagem do produto (se existir)
-  .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
-  .setFooter({
-    text: "PAYZEX • Sistema Automatizado",
-    iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
-  })
-  .setTimestamp();
+            .setColor("#33FF33")
+            .setTitle(`PEDIDO Nº ${pedidoNumero}`)
+            .setDescription(`**${produto.nome}**`)
+            .addFields(
+              { name: "Valor", value: `R$ ${(produto.valor * quantidade).toFixed(2)}`, inline: true },
+              { name: "Cliente", value: `${user}`, inline: true },
+              { name: "Supervisor", value: `<@&${vendedorRole}>`, inline: true },
+              { name: "Entrega", value: "Automática", inline: true },
+              { name: "Pagamento", value: "Via Pix", inline: true },
+              { name: "Suporte", value: "24 Horas", inline: true }
+            )
+            .setImage(produto.imagem) // imagem do produto
+            .setThumbnail(thumbUrl) // usa a thumbnail configurada
+            .setFooter({
+              text: "PAYZEX • Sistema Automatizado",
+              iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
+            })
+            .setTimestamp();
 
           const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -288,30 +267,27 @@ const row = new ActionRowBuilder().addComponents(
     }
 
     // ========== MODAL DE E-MAIL (para gerar PIX) ==========
-else if (interaction.customId.startsWith('modal_email_')) {
-  const pedidoId = interaction.customId.replace('modal_email_', '');
-  const email = interaction.fields.getTextInputValue('email');
+    else if (interaction.customId.startsWith('modal_email_')) {
+      const pedidoId = interaction.customId.replace('modal_email_', '');
+      const email = interaction.fields.getTextInputValue('email');
 
-  db.get(`SELECT * FROM pedidos WHERE pedido_id = ?`, [pedidoId], async (err, pedido) => {
-    if (err || !pedido) {
-      return interaction.reply({ content: '❌ Pedido não encontrado.', ephemeral: true });
+      db.get(`SELECT * FROM pedidos WHERE pedido_id = ?`, [pedidoId], async (err, pedido) => {
+        if (err || !pedido) {
+          return interaction.reply({ content: '❌ Pedido não encontrado.', ephemeral: true });
+        }
+
+        const quantidade = 1; // Ajuste conforme sua lógica
+
+        const gerarPix = require('../utils/gerarPix');
+        try {
+          const { embed, attachment } = await gerarPix(pedido, email, interaction.user, quantidade);
+          await interaction.reply({ embeds: [embed], files: [attachment] });
+        } catch (error) {
+          console.error(error);
+          await interaction.reply({ content: '❌ Erro ao gerar PIX.', ephemeral: true });
+        }
+      });
     }
-
-    // Busca a quantidade do pedido (se for compra direta, tem produto_id e quantidade = 1; se for carrinho, precisa de outra lógica)
-    // Vamos considerar que para compra direta a quantidade é 1 e o produto_id está no pedido.
-    // Para carrinho, a quantidade está em pedido_itens, mas por simplicidade, vamos assumir que o valor total já está no pedido.
-    const quantidade = 1; // Ajuste conforme sua lógica
-
-    const gerarPix = require('../utils/gerarPix');
-    try {
-      const { embed, attachment } = await gerarPix(pedido, email, interaction.user, quantidade);
-      await interaction.reply({ embeds: [embed], files: [attachment] });
-    } catch (error) {
-      console.error(error);
-      await interaction.reply({ content: '❌ Erro ao gerar PIX.', ephemeral: true });
-    }
-  });
-}
   } catch (error) {
     console.error('❌ Erro no modalHandler:', error);
     if (!interaction.replied && !interaction.deferred) {
