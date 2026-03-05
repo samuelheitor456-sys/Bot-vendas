@@ -11,42 +11,48 @@ if (!await isAdmin(interaction.member)) {
   return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
 }
     const embed = new EmbedBuilder()
-      .setColor(0x9B59B6)
-      .setTitle('🔐 Configuração da Credencial Mercado Pago')
-      .setDescription(`
-Para que o bot possa gerar PIX e processar pagamentos, é necessário configurar o **Access Token** do Mercado Pago.
-
-**O que é?**  
-É uma chave que identifica sua conta no Mercado Pago. Você pode obtê-la no [painel do Mercado Pago](https://www.mercadopago.com.br/developers/panel).
-
-**Como obter:**  
-1. Acesse o link acima e faça login.  
-2. Crie ou selecione uma aplicação.  
-3. Na seção "Credenciais", copie o **Access Token** (começa com TEST- ou APP-).  
-4. Clique no botão abaixo e cole o token.
-
-**Importante:**  
-- Use **TEST-** para testes, **APP-** para produção.  
-- A credencial ficará salva no banco de dados.
-      `)
-      .setFooter({ text: 'Apenas administradores podem usar estes botões.' });
+      .setColor(33FF33)
+      .setTitle("__**CADSTRE SUA CREDENCIAL MERCADO PAGO**__")
+      .setDescription("Leia as informações primeiro")
+  .addFields(
+    {
+      name: "•Pra que serve isso ?",
+      value: "•A credencial mercado pago, serve para você receber o pagamento de qualquer produto na sua conta mercado pago",
+      inline: true
+  },
+  {
+      name: "•Como obter a credencial ?",
+      value: "•recomendamos que você assista algum tutorial no YouTube, de Como pegar credencial mercado, lá Irão ensinar o passo a passo de como obter a credencial",
+      inline: true
+      }
+  )
+  .setImage("https://cdn.discordapp.com/attachments/1477322750229090507/1478878249173127208/standard_2.gif?ex=69aaa8f2&is=69a95772&hm=dcbec749642c8c80bbf582c96106a83ef108d112cf9eed98b87f1fd9bcf34ac4&")
+  
+  .setThumbnail("https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
+  
+  .setFooter({
+  
+    text: "PAYZEX SISTEMA CADASTRAMENTO CREDENCIAL",
+    iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
+  })
+  
+  .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('cadastrar_credencial')
-        .setLabel('📝 Cadastrar Credencial')
+        .setLabel('Enviar Credencial')
         .setStyle(ButtonStyle.Success)
-        .setEmoji('🔑'),
+        
       new ButtonBuilder()
         .setCustomId('log_credencial')
-        .setLabel('📋 Ver Credencial')
+        .setLabel('Logs')
         .setStyle(ButtonStyle.Secondary)
-        .setEmoji('🔍'),
+        
       new ButtonBuilder()
         .setCustomId('excluir_credencial')
-        .setLabel('🗑️ Excluir Credencial')
+        .setLabel('Excluir')
         .setStyle(ButtonStyle.Danger)
-        .setEmoji('❌')
     );
 
     await interaction.channel.send({ embeds: [embed], components: [row] });
