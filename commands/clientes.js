@@ -6,10 +6,10 @@ module.exports = {
     .setDescription('Lista todos os clientes que já compraram (IDs)'),
 
   async execute(interaction, client, db) {
-    const adminRole = process.env.ADMIN_ROLE_ID;
-    if (!interaction.member.roles.cache.has(adminRole)) {
-      return interaction.reply({ content: '❌ Apenas administradores podem usar este comando.', ephemeral: true });
-    }
+    const { isAdmin } = require('../utils/permissions');
+if (!await isAdmin(interaction.member)) {
+  return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
+}
 
     db.all(`SELECT comprador_id, COUNT(*) as total, GROUP_CONCAT(pedido_id) as pedidos 
             FROM pedidos WHERE status = 'concluido' 
