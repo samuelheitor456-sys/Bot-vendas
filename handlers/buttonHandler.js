@@ -563,7 +563,29 @@ module.exports = async (interaction, client) => {
       await interaction.showModal(modal);
     }
 
-    // ========== BOTÕES DE TICKET ==========
+    // ========== BOTÃO DEFINIR THUMBNAIL ==========
+    else if (customId === 'definir_thumb') {
+      if (!interaction.member.roles.cache.has(process.env.ADMIN_ROLE_ID)) {
+        return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
+      }
+
+      const modal = new ModalBuilder()
+        .setCustomId('modal_thumb')
+        .setTitle('Definir Thumbnail dos Produtos');
+
+      const urlInput = new TextInputBuilder()
+        .setCustomId('thumb_url')
+        .setLabel('URL da imagem (deve começar com http)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setPlaceholder('https://...');
+
+      const row = new ActionRowBuilder().addComponents(urlInput);
+      modal.addComponents(row);
+      await interaction.showModal(modal);
+    }
+
+    // ========== BOTÕES DE TICKET (CONFIRMAR/FECHAR) ==========
     else if (customId.startsWith('confirmar_')) {
       if (!interaction.member.roles.cache.has(process.env.VENDEDOR_ROLE_ID)) {
         return interaction.reply({ content: '❌ Apenas vendedores.', ephemeral: true });
