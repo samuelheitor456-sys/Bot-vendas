@@ -11,7 +11,7 @@ if (!await isAdmin(interaction.member)) {
   return interaction.reply({ content: '❌ Apenas administradores.', ephemeral: true });
 }
     const embed = new EmbedBuilder()
-      .setColor(33FF33)
+      .setColor("33FF33")
       .setTitle("__**CADSTRE SUA CREDENCIAL MERCADO PAGO**__")
       .setDescription("Leia as informações primeiro")
   .addFields(
@@ -19,8 +19,8 @@ if (!await isAdmin(interaction.member)) {
       name: "•Pra que serve isso ?",
       value: "•A credencial mercado pago, serve para você receber o pagamento de qualquer produto na sua conta mercado pago",
       inline: true
-  },
-  {
+      },
+      {
       name: "•Como obter a credencial ?",
       value: "•recomendamos que você assista algum tutorial no YouTube, de Como pegar credencial mercado, lá Irão ensinar o passo a passo de como obter a credencial",
       inline: true
