@@ -177,55 +177,31 @@ async function finalizarCompra(interaction, client) {
   });
 
   const embed = new EmbedBuilder()
-    .setColor(0x9B59B6)
-    .setTitle(`🛒 **COMPRA DO PEDIDO ${pedidoNumero}**`)
-    .setDescription(`
-━━━━━━━━━━━━━━━━━━━━━━━━
-**👤 RESPONSÁVEL:** <@&${vendedorRole}>
-━━━━━━━━━━━━━━━━━━━━━━━━
+            .setColor("#33FF33")
+            .setTitle(`PEDIDO Nº ${pedidoNumero}`)
+            .setDescription(`**${produto.nome}**`)
+            .addFields(
+              { name: "Valor", value: `R$ ${(produto.valor * quantidade).toFixed(2)}`, inline: true },
+              { name: "Cliente", value: `${user}`, inline: true },
+              { name: "Supervisor", value: `<@&${vendedorRole}>`, inline: true },
+              { name: "Entrega", value: "Automática", inline: true },
+              { name: "Pagamento", value: "Via Pix", inline: true },
+              { name: "Suporte", value: "24 Horas", inline: true }
+            )
+            .setImage(produto.imagem) // imagem do produto
+            .setThumbnail(thumbUrl) // usa a thumbnail configurada
+            .setFooter({
+              text: "PAYZEX • Sistema Automatizado",
+              iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
+            })
+            .setTimestamp();
 
-**📦 PRODUTO(S):** ${itens.map(i => i.nome).join(', ')}
-
-**💰 VALOR TOTAL:** R$ ${total.toFixed(2)}
-
-**👤 CLIENTE:** ${user}
-
-**📝 DESCRIÇÃO:** ${itens.map(i => i.descricao).join(' ')}
-
-━━━━━━━━━━━━━━━━━━━━━━━━
-**💳 PAGAMENTO VIA PIX**
-━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔹 **Como gerar o Pix?**
-Digite o comando abaixo neste canal:
-
-\`\`\`
-/email seu@email.com
-\`\`\`
-
-✅ **Pagamento 100% seguro processado pelo Mercado Pago**
-⏱️ Após a confirmação, o produto será entregue automaticamente.
-
-━━━━━━━━━━━━━━━━━━━━━━━━
-    `)
-    .setFooter({ 
-      text: 'BOT DE VENDAS PRIME WOLF PACK | Confiança e segurança em cada compra', 
-      iconURL: 'https://cdn.discordapp.com/emojis/1234567890.png' 
-    })
-    .setTimestamp();
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`confirmar_${pedidoId}`)
-      .setLabel('✅ CONFIRMAR VENDA')
-      .setStyle(ButtonStyle.Success)
-      .setEmoji('✅'),
-    new ButtonBuilder()
-      .setCustomId(`fechar_${pedidoId}`)
-      .setLabel('❌ FECHAR TICKET')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('❌')
-  );
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`gerar_pix_${pedidoId}`)
+              .setLabel('Gerar PIX')
+              .setStyle(ButtonStyle.Primary)
+          );
 
   await ticketChannel.send({ embeds: [embed], components: [row] });
   await interaction.editReply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
