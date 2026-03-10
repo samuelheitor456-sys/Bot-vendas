@@ -96,8 +96,9 @@ async function finalizarCompra(interaction, client) {
     return interaction.editReply({ content: '❌ VENDEDOR_ROLE_ID não configurado.', ephemeral: true });
   }
 
+  // Buscar itens do carrinho
   const itens = await new Promise((resolve, reject) => {
-    db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.link, p.descricao, p.estoque
+    db.all(`SELECT ci.id, p.id as produto_id, p.nome, p.valor, ci.quantidade, p.link, p.descricao, p.estoque, p.imagem
             FROM carrinho_itens ci
             JOIN carrinhos c ON ci.carrinho_id = c.id
             JOIN produtos p ON ci.produto_id = p.id
@@ -111,6 +112,7 @@ async function finalizarCompra(interaction, client) {
     return interaction.editReply({ content: '❌ Carrinho vazio.', ephemeral: true });
   }
 
+  // Verificar estoque
   for (const item of itens) {
     if (item.estoque !== -1 && item.estoque < item.quantidade) {
       return interaction.editReply({ 
@@ -122,6 +124,7 @@ async function finalizarCompra(interaction, client) {
 
   const total = itens.reduce((acc, i) => acc + i.valor * i.quantidade, 0);
 
+  // Gerar número do pedido
   const pedidoNumero = await new Promise((resolve, reject) => {
     db.get(`SELECT value FROM config WHERE key = 'pedido_counter'`, (err, row) => {
       if (err) reject(err);
@@ -136,6 +139,7 @@ async function finalizarCompra(interaction, client) {
   });
   const pedidoId = `pedido-${pedidoNumero}`;
 
+  // Criar canal de ticket
   const ticketChannel = await guild.channels.create({
     name: pedidoId,
     type: 0,
@@ -147,12 +151,14 @@ async function finalizarCompra(interaction, client) {
     ],
   });
 
+  // Inserir pedido principal
   await new Promise((resolve, reject) => {
     db.run(`INSERT INTO pedidos (pedido_id, pedido_numero, comprador_id, valor, status) VALUES (?, ?, ?, ?, ?)`,
       [pedidoId, pedidoNumero, user.id, total, 'aguardando_pagamento'],
       function(err) { if (err) reject(err); else resolve(); });
   });
 
+  // Inserir itens do pedido e dar baixa no estoque
   for (const item of itens) {
     await new Promise((resolve, reject) => {
       db.run(`INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, valor_unitario) VALUES (?, ?, ?, ?)`,
@@ -169,6 +175,7 @@ async function finalizarCompra(interaction, client) {
     }
   }
 
+  // Limpar carrinho
   await new Promise((resolve, reject) => {
     db.run(`DELETE FROM carrinho_itens WHERE carrinho_id = (SELECT id FROM carrinhos WHERE usuario_id = ?)`, [usuarioId], (err) => {
       if (err) reject(err);
@@ -176,36 +183,44 @@ async function finalizarCompra(interaction, client) {
     });
   });
 
-  const embed = new EmbedBuilder()
-            .setColor("#33FF33")
-            .setTitle(`PEDIDO Nº ${pedidoNumero}`)
-            .setDescription(`**${produto.nome}**`)
-            .addFields(
-              { name: "Valor", value: `R$ ${(produto.valor * quantidade).toFixed(2)}`, inline: true },
-              { name: "Cliente", value: `${user}`, inline: true },
-              { name: "Supervisor", value: `<@&${vendedorRole}>`, inline: true },
-              { name: "Entrega", value: "Automática", inline: true },
-              { name: "Pagamento", value: "Via Pix", inline: true },
-              { name: "Suporte", value: "24 Horas", inline: true }
-            )
-            .setImage(produto.imagem) // imagem do produto
-            .setThumbnail(thumbUrl) // usa a thumbnail configurada
-            .setFooter({
-              text: "PAYZEX • Sistema Automatizado",
-              iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
-            })
-            .setTimestamp();
+  // Buscar a thumbnail configurada
+  const thumbUrl = await new Promise((resolve) => {
+    db.get(`SELECT value FROM config WHERE key = 'thumb_url'`, (err, row) => {
+      resolve(row?.value || "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png");
+    });
+  });
 
-          const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`gerar_pix_${pedidoId}`)
-              .setLabel('Gerar PIX')
-              .setStyle(ButtonStyle.Primary)
-          );
+  // ==================== NOVO EMBED PADRÃO (igual ao da compra direta) ====================
+  const embed = new EmbedBuilder()
+    .setColor("#33FF33")
+    .setTitle(`PEDIDO Nº ${pedidoNumero}`)
+    .setDescription(`**${itens.map(i => i.nome).join(', ')}**`)
+    .addFields(
+      { name: "Valor", value: `R$ ${total.toFixed(2)}`, inline: true },
+      { name: "Cliente", value: `${user}`, inline: true },
+      { name: "Supervisor", value: `<@&${vendedorRole}>`, inline: true },
+      { name: "Entrega", value: "Automática", inline: true },
+      { name: "Pagamento", value: "Via Pix", inline: true },
+      { name: "Suporte", value: "24 Horas", inline: true }
+    )
+    .setImage(itens[0]?.imagem || "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png")
+    .setThumbnail(thumbUrl)
+    .setFooter({
+      text: "PAYZEX • Sistema Automatizado",
+      iconURL: "https://cdn.discordapp.com/attachments/1475581562325176530/1478465217066307695/IMG_20260302_164525.png"
+    })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`gerar_pix_${pedidoId}`)
+      .setLabel('Gerar PIX')
+      .setStyle(ButtonStyle.Primary)
+  );
 
   await ticketChannel.send({ embeds: [embed], components: [row] });
   await interaction.editReply({ content: `✅ **Ticket criado:** ${ticketChannel}`, ephemeral: true });
-}
+       }
 
 async function abrirModalQuantidade(interaction, produtoId, acao) {
   const modal = new ModalBuilder()
